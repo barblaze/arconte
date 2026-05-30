@@ -50,15 +50,21 @@ jobs:
           # Copia cualquier asset adicional (imágenes, fuentes locales, etc.)
           [ -d assets ] && cp -r assets www/assets || true
 
-      # ── 7. Capacitor sync ────────────────────────────────
+      # ── 7. Inicializar proyecto Android ─────────────────
+      - name: Initialize Android project
+        run: |
+          rm -rf android
+          npx cap add android
+
+      # ── 8. Capacitor sync ────────────────────────────────
       - name: Capacitor sync Android
         run: npx cap sync android
 
-      # ── 8. Gradle permissions ────────────────────────────
+      # ── 9. Gradle permissions ────────────────────────────
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # ── 9. Build APK debug (PRs y branches sin tag) ──────
+      # ── 10. Build APK debug (PRs y branches sin tag) ─────
       - name: Build Debug APK
         if: "!startsWith(github.ref, 'refs/tags/')"
         working-directory: android
@@ -72,13 +78,13 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
-      # ── 10. Build APK release (solo en tags v*) ──────────
+      # ── 11. Build APK release (solo en tags v*) ──────────
       - name: Build Release APK
         if: startsWith(github.ref, 'refs/tags/')
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
 
-      # ── 11. Firmar APK release ───────────────────────────
+      # ── 12. Firmar APK release ───────────────────────────
       - name: Sign Release APK
         if: startsWith(github.ref, 'refs/tags/')
         uses: r0adkll/sign-android-release@v1
@@ -92,7 +98,7 @@ jobs:
         env:
           BUILD_TOOLS_VERSION: "34.0.0"
 
-      # ── 12. Upload Release APK firmado ───────────────────
+      # ── 13. Upload Release APK firmado ───────────────────
       - name: Upload Signed Release APK
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
@@ -101,7 +107,7 @@ jobs:
           path: ${{ steps.sign_apk.outputs.signedReleaseFile }}
           retention-days: 90
 
-      # ── 13. GitHub Release automático con el APK ─────────
+      # ── 14. GitHub Release automático con el APK ─────────
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
