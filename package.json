@@ -8,7 +8,6 @@
     "cap:add:android": "npx cap add android",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
-    "prepare": "npx cap sync android"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
