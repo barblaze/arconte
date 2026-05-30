@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Arconte del Alba</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   VARIABLES Y RESET
+═══════════════════════════════════════════════════════ */
+:root {
+  --luz-primary:#f5d97a; --luz-glow:rgba(245,217,122,.35); --luz-accent:#c9a84c;
+  --caos-primary:#b04aff; --caos-glow:rgba(176,74,255,.45); --caos-accent:#7b2fcf;
+  --void-primary:#00e5cc; --void-glow:rgba(0,229,204,.35);
+  --active-primary:var(--luz-primary); --active-glow:var(--luz-glow); --active-accent:var(--luz-accent);
+  --bg:#0a0705; --surface:rgba(255,255,255,.04); --border:rgba(255,255,255,.08);
+  --bg-surface:#1a1320; --stone:#2e2535; --stone-light:#3d3248;
+  --text:#e8dfc8; --text-dim:rgba(232,223,200,.5); --text-bright:#f0e8d8;
+  --gold:#c9a84c;
+  --font-display:'Cinzel Decorative',serif; --font-ui:'Cinzel',serif; --font-body:'IM Fell English',serif;
+  --transition-speed:0.7s;
+}
+.modo-caos {
+  --active-primary:var(--caos-primary); --active-glow:var(--caos-glow); --active-accent:var(--caos-accent);
+}
+.modo-abismo {
+  --active-primary:var(--void-primary); --active-glow:var(--void-glow); --active-accent:#009988; --bg:#020a0a;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; background:var(--bg); color:var(--text); font-family:var(--font-body); overflow:hidden; transition:background .8s; }
+body::before {
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.025'/%3E%3C/svg%3E");
+}
+
+/* ── FONDO AURA ── */
+#bg-aura {
+  position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+  width:100%; height:40%;
+  background:radial-gradient(ellipse at 50% 100%, var(--active-glow) 0%, transparent 70%);
+  pointer-events:none; z-index:0; transition:background .7s;
+}
+
+/* ── APP ── */
+#app { position:relative; z-index:1; max-width:480px; margin:0 auto; height:100dvh; display:flex; flex-direction:column; display:none; }
+
+/* ═══════════════════════════════════════════════════════
+   PANTALLA DE INICIO (selección de acto)
+═══════════════════════════════════════════════════════ */
+#pantalla-inicio {
+  position:fixed; inset:0; z-index:100;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:radial-gradient(ellipse at 50% 80%,rgba(176,74,255,.1) 0%,var(--bg) 70%);
+  padding:2rem 1.5rem; gap:1.2rem;
+}
+#pantalla-inicio .logo-rune { font-size:2.5rem; filter:drop-shadow(0 0 20px rgba(245,217,122,.6)); animation:glow-pulse 3s ease-in-out infinite; }
+#pantalla-inicio h1 { font-family:var(--font-display); font-size:clamp(1.1rem,5vw,1.5rem); color:var(--luz-primary); text-align:center; letter-spacing:.12em; text-shadow:0 0 40px var(--luz-glow); animation:glow-pulse 3s ease-in-out infinite; }
+#pantalla-inicio .inicio-sub { font-family:var(--font-ui); font-size:.55rem; letter-spacing:.35em; color:var(--text-dim); text-transform:uppercase; }
+.act-cards { display:flex; gap:.8rem; width:100%; max-width:360px; }
+.act-card {
+  flex:1; background:var(--surface); border:1px solid var(--border);
+  padding:.8rem .7rem; display:flex; flex-direction:column; gap:.4rem; align-items:center;
+}
+.act-card-title { font-family:var(--font-display); font-size:.7rem; letter-spacing:.15em; color:var(--active-primary); text-align:center; }
+.act-card-sub { font-family:var(--font-body); font-style:italic; font-size:.72rem; color:var(--text-dim); text-align:center; line-height:1.4; min-height:2rem; }
+.btn-act {
+  font-family:var(--font-ui); font-size:.65rem; letter-spacing:.12em; padding:.5rem .9rem;
+  border:none; cursor:pointer; width:100%; -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+  transition:all .2s;
+}
+.btn-act.primario { background:var(--luz-primary); color:var(--bg); }
+.btn-act.primario:hover { filter:brightness(1.15); }
+.btn-act.secundario { background:transparent; color:var(--text-dim); border:1px solid var(--border); }
+.btn-act.secundario:hover { border-color:var(--luz-primary); color:var(--luz-primary); }
+.btn-act.caos-btn { background:var(--caos-primary); color:#fff; }
+.btn-act.caos-btn:hover { filter:brightness(1.15); }
+.btn-act:disabled { opacity:.3; cursor:default; pointer-events:none; }
+.act-divider { font-family:var(--font-ui); font-size:.5rem; color:var(--border); letter-spacing:.2em; }
+
+/* ── HEADER ── */
+#header { flex-shrink:0; padding:.7rem 1rem; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:rgba(10,7,5,.8); backdrop-filter:blur(8px); }
+#header-title { font-family:var(--font-display); font-size:.65rem; letter-spacing:.2em; color:var(--active-primary); transition:color .5s; white-space:nowrap; }
+#save-indicator { font-family:var(--font-ui); font-size:.6rem; color:var(--active-primary); opacity:0; transition:opacity .4s; letter-spacing:.1em; }
+#esfera-toggle { display:flex; align-items:center; gap:.4rem; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+#esfera-toggle span { font-family:var(--font-ui); font-size:.6rem; letter-spacing:.08em; color:var(--active-primary); transition:color .5s; }
+#toggle-track { width:36px; height:18px; background:rgba(255,255,255,.08); border-radius:9px; position:relative; border:1px solid var(--active-primary); transition:border-color .5s; }
+#toggle-thumb { position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:var(--luz-primary); transition:transform .3s, background .5s; }
+.modo-caos #toggle-thumb { transform:translateX(18px); background:var(--caos-primary); }
+
+/* ── ACTO BADGE ── */
+#acto-badge { flex-shrink:0; padding:.3rem 1rem; background:rgba(255,255,255,.025); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:.6rem; }
+#location-text { font-family:var(--font-ui); font-size:.65rem; letter-spacing:.12em; color:var(--text-dim); flex:1; }
+#stealth-bar { display:none; align-items:center; gap:.3rem; }
+#stealth-bar.visible { display:flex; }
+#stealth-label { font-family:var(--font-ui); font-size:.55rem; color:var(--text-dim); letter-spacing:.08em; }
+.alerta-dot { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.15); transition:background .4s; }
+.alerta-dot.activo { background:#ff4444; box-shadow:0 0 6px #ff4444; }
+
+/* ── ÁREA DE TEXTO ── */
+#text-wrapper { flex:1; overflow:hidden; position:relative; mask-image:linear-gradient(transparent 0%,black 6%,black 90%,transparent 100%); -webkit-mask-image:linear-gradient(transparent 0%,black 6%,black 90%,transparent 100%); }
+#text-area { height:100%; overflow-y:auto; padding:1.2rem 1rem 1rem; font-size:.92rem; line-height:1.85; color:var(--text); scrollbar-width:none; }
+#text-area::-webkit-scrollbar { display:none; }
+#text-area em { font-style:italic; color:rgba(232,223,200,.85); }
+#text-area strong { font-weight:400; color:var(--active-primary); transition:color .5s; font-family:var(--font-ui); letter-spacing:.05em; }
+#scroll-hint { position:absolute; bottom:.4rem; left:50%; transform:translateX(-50%); font-size:.7rem; color:var(--text-dim); opacity:0; transition:opacity .4s; pointer-events:none; font-family:var(--font-ui); letter-spacing:.1em; }
+#scroll-hint.visible { opacity:1; }
+
+/* ── COMPANION PANEL ── */
+#companion-panel { flex-shrink:0; display:none; padding:.6rem 1rem; border-top:1px solid rgba(245,217,122,.15); background:rgba(245,217,122,.03); gap:.5rem; align-items:flex-start; }
+#companion-panel.visible { display:flex; }
+#companion-avatar { font-size:1.1rem; flex-shrink:0; }
+#companion-text { font-family:var(--font-body); font-style:italic; font-size:.8rem; color:rgba(245,217,122,.7); line-height:1.6; }
+
+/* ── OPCIONES ── */
+#options-area { flex-shrink:0; padding:.6rem .8rem; display:flex; flex-direction:column; gap:.4rem; border-top:1px solid var(--border); max-height:42%; overflow-y:auto; scrollbar-width:none; }
+#options-area::-webkit-scrollbar { display:none; }
+.opcion-btn { font-family:var(--font-body); font-size:.85rem; line-height:1.4; color:var(--text); background:var(--surface); border:1px solid var(--border); border-left-width:2px; padding:.6rem .7rem; cursor:pointer; text-align:left; -webkit-tap-highlight-color:transparent; touch-action:manipulation; transition:all .18s; position:relative; }
+.opcion-btn:active { opacity:.75; }
+.opcion-btn.solis { border-left-color:var(--luz-primary); }
+.opcion-btn.caos { border-left-color:var(--caos-primary); }
+.opcion-btn.item { border-left-color:var(--luz-accent); }
+.opcion-btn.flag { border-left-color:var(--void-primary); }
+.num-badge { display:inline-block; width:1.1em; height:1.1em; border-radius:50%; background:rgba(255,255,255,.07); font-family:var(--font-ui); font-size:.65em; text-align:center; line-height:1.1em; margin-right:.35em; }
+
+/* ── INVENTARIO ── */
+#inventario-bar { flex-shrink:0; padding:.4rem .8rem; display:flex; flex-wrap:wrap; gap:.3rem; border-top:1px solid var(--border); min-height:2rem; align-items:center; }
+#inventario-label { font-family:var(--font-ui); font-size:.55rem; letter-spacing:.12em; color:var(--text-dim); margin-right:.2rem; }
+.item-chip { background:rgba(255,255,255,.06); border:1px solid var(--border); padding:.15rem .4rem; border-radius:2px; cursor:default; animation:item-appear .3s cubic-bezier(.34,1.56,.64,1); font-family:var(--font-ui); font-size:.6rem; letter-spacing:.05em; color:var(--text-dim); }
+@keyframes item-appear { from{transform:scale(.6);opacity:0} to{transform:scale(1);opacity:1} }
+
+/* ── COMBAT HUD ── */
+#combat-hud { display:none; flex-shrink:0; padding:.6rem .8rem; background:rgba(0,0,0,.4); border-top:2px solid rgba(176,74,255,.3); }
+#combat-hud.activo { display:block; }
+.combat-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:.35rem; gap:.5rem; }
+.combat-name { font-family:var(--font-ui); font-size:.6rem; letter-spacing:.1em; color:var(--text-dim); white-space:nowrap; }
+.hp-bar-wrap { flex:1; height:6px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
+.hp-bar { height:100%; border-radius:3px; transition:width .5s ease; }
+#player-hp-bar { background:linear-gradient(90deg,#f5a073,#f5d97a); }
+#enemy-hp-bar { background:linear-gradient(90deg,#ff4444,#b04aff); }
+.hp-num { font-family:var(--font-ui); font-size:.6rem; color:var(--text-dim); min-width:2.5rem; text-align:right; }
+#enemy-phase { font-family:var(--font-ui); font-size:.55rem; letter-spacing:.1em; text-align:center; margin-bottom:.3rem; padding:.15rem; border-radius:2px; display:none; }
+#enemy-phase.fase-nox { color:var(--caos-primary); background:rgba(176,74,255,.1); }
+#enemy-phase.fase-solis { color:var(--luz-primary); background:rgba(245,217,122,.1); }
+.combat-log { font-family:var(--font-body); font-style:italic; font-size:.75rem; color:var(--text-dim); min-height:1.2rem; margin-bottom:.3rem; text-align:center; }
+#combat-actions { display:flex; gap:.3rem; flex-wrap:wrap; }
+.combat-btn { flex:1; min-width:80px; font-family:var(--font-ui); font-size:.6rem; letter-spacing:.08em; padding:.45rem .3rem; background:var(--surface); border:1px solid var(--border); color:var(--text); cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; transition:all .15s; }
+.combat-btn.solis-btn { border-color:var(--luz-accent); }
+.combat-btn.caos-btn { border-color:var(--caos-accent); }
+.combat-btn:disabled { opacity:.3; cursor:default; }
+
+/* ── MIRROR PUZZLE ── */
+#mirror-overlay { display:none; position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.92); flex-direction:column; align-items:center; justify-content:center; gap:1.2rem; padding:2rem; }
+#mirror-overlay.visible { display:flex; }
+#mirror-title { font-family:var(--font-display); font-size:.9rem; letter-spacing:.15em; color:var(--text); text-align:center; }
+#mirror-hint { font-family:var(--font-body); font-style:italic; font-size:.8rem; color:var(--text-dim); text-align:center; max-width:300px; line-height:1.7; }
+#mirrors-row { display:flex; gap:1.5rem; align-items:center; justify-content:center; }
+.mirror-frame { width:70px; height:100px; border:2px solid var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.3rem; cursor:pointer; transition:all .3s; position:relative; overflow:hidden; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+.mirror-frame::before { content:''; position:absolute; inset:0; background:linear-gradient(160deg,rgba(255,255,255,.05) 0%,transparent 60%); }
+.mirror-frame.activado-solis { border-color:var(--luz-primary); background:rgba(245,217,122,.08); box-shadow:0 0 20px var(--luz-glow); }
+.mirror-frame.activado-nox { border-color:var(--caos-primary); background:rgba(176,74,255,.08); box-shadow:0 0 20px var(--caos-glow); }
+.mirror-frame.error { border-color:#ff4444; animation:mirror-shake .4s; }
+@keyframes mirror-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+.mirror-glyph { font-size:1.6rem; }
+.mirror-num { font-family:var(--font-ui); font-size:.55rem; letter-spacing:.1em; color:var(--text-dim); }
+#mirror-progress { display:flex; gap:.4rem; }
+.mirror-step { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.1); transition:background .3s; }
+.mirror-step.solis { background:var(--luz-primary); }
+.mirror-step.nox { background:var(--caos-primary); }
+#mirror-close { font-family:var(--font-ui); font-size:.65rem; letter-spacing:.12em; color:var(--text-dim); background:none; border:1px solid var(--border); padding:.4rem 1rem; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+
+/* ── MODO ABISMO ── */
+.modo-abismo #text-area strong { color:var(--void-primary); }
+.modo-abismo #options-area .opcion-btn { border-color:rgba(0,229,204,.15); }
+.modo-abismo #header-title { color:var(--void-primary); }
+.modo-abismo #toggle-track { border-color:var(--void-primary); opacity:.5; }
+
+/* ── TRANSICIÓN ── */
+#transition-overlay { position:fixed; inset:0; z-index:90; background:var(--bg); opacity:0; pointer-events:none; transition:opacity .34s; }
+#transition-overlay.activo { opacity:1; pointer-events:all; }
+
+/* ── TOAST ── */
+#toast { position:fixed; top:3.5rem; left:50%; transform:translateX(-50%) translateY(-8px); z-index:200; background:rgba(10,7,5,.95); border:1px solid var(--active-primary); font-family:var(--font-ui); font-size:.65rem; letter-spacing:.1em; color:var(--active-primary); padding:.4rem .9rem; opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; max-width:300px; text-align:center; }
+#toast.visible { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── CHAPTER SCREEN ── */
+#chapter-screen { display:none; position:fixed; inset:0; z-index:95; background:var(--bg); flex-direction:column; align-items:center; justify-content:center; gap:1.2rem; padding:2rem; }
+#chapter-screen.visible { display:flex; }
+#chapter-act { font-family:var(--font-display); font-size:.7rem; letter-spacing:.3em; color:var(--text-dim); text-align:center; }
+#chapter-title { font-family:var(--font-display); font-size:clamp(1rem,4.5vw,1.4rem); color:var(--active-primary); text-align:center; letter-spacing:.1em; animation:glow-pulse 2s ease-in-out infinite; }
+#chapter-summary { font-family:var(--font-body); font-style:italic; color:var(--text-dim); text-align:center; font-size:.85rem; line-height:1.75; max-width:340px; }
+#chapter-continue { font-family:var(--font-ui); font-size:.75rem; letter-spacing:.15em; color:var(--bg); background:var(--active-primary); border:none; padding:.7rem 2rem; cursor:pointer; margin-top:.5rem; -webkit-tap-highlight-color:transparent; }
+
+@keyframes glow-pulse { 0%,100%{text-shadow:0 0 20px var(--active-glow)} 50%{text-shadow:0 0 40px var(--active-glow),0 0 60px var(--active-glow)} }
+</style>
+</head>
+<body>
+<div id="bg-aura"></div>
+
+<!-- ── PANTALLA DE INICIO ── -->
+<div id="pantalla-inicio">
+  <div class="logo-rune">⚜</div>
+  <h1>Arconte del Alba</h1>
+  <p class="inicio-sub">Las Esencias Gemelas</p>
+  <div class="act-cards">
+    <div class="act-card">
+      <div class="act-card-title">Acto I</div>
+      <div class="act-card-sub"><em>El Castillo de Valerius</em></div>
+      <button class="btn-act primario" onclick="iniciarActo(1, false)">Nueva Partida</button>
+      <button class="btn-act secundario" id="btn-continuar-1" onclick="iniciarActo(1, true)" disabled>Continuar</button>
+    </div>
+    <div class="act-divider">✦</div>
+    <div class="act-card">
+      <div class="act-card-title">Acto II</div>
+      <div class="act-card-sub"><em>El Tercer Círculo y la Antecámara</em></div>
+      <button class="btn-act caos-btn" onclick="iniciarActo(2, false)">Nueva Partida</button>
+      <button class="btn-act secundario" id="btn-continuar-2" onclick="iniciarActo(2, true)" disabled>Continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHAPTER SCREEN ── -->
+<div id="chapter-screen">
+  <div id="chapter-act">✦</div>
+  <div id="chapter-title">Arconte del Alba</div>
+  <div id="chapter-summary"></div>
+  <button id="chapter-continue">Descender</button>
+</div>
+
+<!-- ── APP PRINCIPAL ── -->
+<div id="app">
+  <div id="header">
+    <div id="header-title">✦ Arconte del Alba</div>
+    <div id="save-indicator">✦ Guardado</div>
+    <div id="esfera-toggle" role="switch" aria-label="Cambiar esfera" tabindex="0" onclick="cambiarEsfera()" onkeydown="if(event.key==='Enter'||event.key===' ')cambiarEsfera()">
+      <span id="esfera-label">Solis</span>
+      <div id="toggle-track"><div id="toggle-thumb"></div></div>
+    </div>
+  </div>
+  <div id="acto-badge">
+    <div id="location-text">—</div>
+    <div id="stealth-bar">
+      <div id="stealth-label">Alerta</div>
+      <div class="alerta-dot" id="dot1"></div>
+      <div class="alerta-dot" id="dot2"></div>
+      <div class="alerta-dot" id="dot3"></div>
+    </div>
+  </div>
+  <div id="text-wrapper">
+    <div id="text-area"></div>
+    <div id="scroll-hint">▾ más</div>
+  </div>
+  <div id="companion-panel">
+    <div id="companion-avatar">👁</div>
+    <div id="companion-text"></div>
+  </div>
+  <div id="combat-hud">
+    <div id="enemy-phase"></div>
+    <div class="combat-row">
+      <div class="combat-name" id="player-name">Alaric</div>
+      <div class="hp-bar-wrap"><div class="hp-bar" id="player-hp-bar"></div></div>
+      <div class="hp-num" id="player-hp-num">100</div>
+    </div>
+    <div class="combat-row">
+      <div class="combat-name" id="enemy-name">—</div>
+      <div class="hp-bar-wrap"><div class="hp-bar" id="enemy-hp-bar"></div></div>
+      <div class="hp-num" id="enemy-hp-num">—</div>
+    </div>
+    <div class="combat-log" id="combat-log"></div>
+    <div id="combat-actions"></div>
+  </div>
+  <div id="inventario-bar">
+    <div id="inventario-label">✦ ÍTEMS</div>
+  </div>
+  <div id="options-area"></div>
+</div>
+
+<!-- ── MIRROR PUZZLE ── -->
+<div id="mirror-overlay">
+  <div id="mirror-title">Sala de los Espejos</div>
+  <div id="mirror-hint">Cada espejo responde a una esfera. Actívalos en el orden correcto para abrir el paso.</div>
+  <div id="mirrors-row">
+    <div class="mirror-frame" id="mirror-A" onclick="activarEspejo('A')"><div class="mirror-glyph">🜁</div><div class="mirror-num">I</div></div>
+    <div class="mirror-frame" id="mirror-B" onclick="activarEspejo('B')"><div class="mirror-glyph">🜃</div><div class="mirror-num">II</div></div>
+    <div class="mirror-frame" id="mirror-C" onclick="activarEspejo('C')"><div class="mirror-glyph">🜁</div><div class="mirror-num">III</div></div>
+  </div>
+  <div id="mirror-progress">
+    <div class="mirror-step" id="ms1"></div>
+    <div class="mirror-step" id="ms2"></div>
+    <div class="mirror-step" id="ms3"></div>
+  </div>
+  <button id="mirror-close" onclick="cerrarPuzzleEspejos()">← Retroceder</button>
+</div>
+
+<div id="transition-overlay"></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════
+// ÍTEMS (Acto I + Acto II fusionados)
+// ═══════════════════════════════════════════════════════
+const ITEMS = {
+  // ── Acto I ──
+  medalla_valerius:      { nombre:'Medalla del Inquisidor',   icono:'🎖', descripcion:'Sello oficial de Valerius. Podría abrir puertas o cerrarlas.' },
+  mapa_espectral:        { nombre:'Mapa Espectral',           icono:'🗺', descripcion:'Muestra partes del castillo invisibles al ojo vivo.' },
+  llave_mazmorra:        { nombre:'Llave Mazmorra',           icono:'🗝', descripcion:'Hierro antiguo con cabeza de cráneo coronado. Pesa más de lo que debería.' },
+  nucleo_reloj:          { nombre:'Núcleo del Reloj',         icono:'⚙', descripcion:'Corazón mecánico-espiritual. Latía dentro del reloj detenido.' },
+  sello_tercer_circulo:  { nombre:'Sello del 3er Círculo',    icono:'📜', descripcion:'Llave espiritual para el umbral del Tercer Círculo.' },
+  pocion_medula:         { nombre:'Poción de Médula',         icono:'⚗', descripcion:'Restaura 40 HP. Sabor a hierro y promesas.' },
+  // ── Acto II ──
+  fragmento_espejo:      { nombre:'Fragmento del Espejo',     icono:'🪞', descripcion:'Muestra reflejos ajenos. Vibra al cambiar de esfera.' },
+  amuleto_heraldo:       { nombre:'Amuleto del Heraldo',      icono:'⛓', descripcion:'Arrancado del Heraldo Corrompido. Alterna entre frío y calor.' },
+  clave_maestra:         { nombre:'Clave del Maestro',        icono:'🔑', descripcion:'Contiene el nombre verdadero del Maestro del Credo.' },
+};
+
+// ═══════════════════════════════════════════════════════
+// ENEMIGOS (Acto I + Acto II fusionados)
+// ═══════════════════════════════════════════════════════
+const ENEMIGOS = {
+  // ── Acto I ──
+  caballero_condenado:   { nombre:'Caballero Condenado',       hp:60,  hpMax:60,  fase:null, turnos:0 },
+  // ── Acto II ──
+  alma_guardia:          { nombre:'Alma Guardia',              hp:40,  hpMax:40,  fase:null, turnos:0 },
+  guardian_espejo:       { nombre:'Guardián del Espejo',       hp:55,  hpMax:55,  fase:null, turnos:0 },
+  heraldo_corrompido: {
+    nombre:'El Heraldo Corrompido',
+    hp:150, hpMax:150, fase:'nox', turnos:0,
+    faseTexto:{ nox:'Fase Nox — Vulnerable a Solis', solis:'Fase Solis — Vulnerable a Nox' }
+  },
+  maestro_credo:         { nombre:'Maestro Invocado',          hp:80,  hpMax:80,  fase:null, turnos:0 },
+};
+
+// ═══════════════════════════════════════════════════════
+// ESTADO DEL JUEGO
+// ═══════════════════════════════════════════════════════
+let estado = {
+  actoActual: 1,
+  nodoActual: 'inicio',
+  esfera: 'solis',           // 'solis' o 'caos'
+  inventario: [],
+  hp: 100, hpMax: 100,
+  combate: null,
+  flagsNarrativa: {},
+  alerta: 0,
+  espejosActivados: [],
+  espejosIntentos: 0,
+  actoCompletado: false,
+};
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+const f       = id => estado.flagsNarrativa[id];
+const setF    = (id, val=true) => { estado.flagsNarrativa[id] = val; };
+const tieneItem  = id => estado.inventario.includes(id);
+const esEsfera   = e  => estado.esfera === e;
+const seraphinePresente = () => f('seraphine_liberada') || f('seraphine_aliada');
+
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// HISTORIA — ACTO I: El Castillo de Valerius
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+const historiaActo1 = {
+
+  // ── PRÓLOGO ──────────────────────────────────────────
+  inicio: {
+    ubicacion: '📍 Prólogo · El Umbral de la Memoria',
+    texto: `La oscuridad te precede. No recuerdas tu nombre, pero recuerdas el peso del acero en tu mano y el sabor de la traición. El <strong>Credo</strong> te envió aquí por una razón: el <strong>Castillo Malachar</strong> es un nexo. Una herida en el tejido del mundo donde los muertos no descansan y los vivos deberían huir.<br><br>
+Pero tú no huiste. Atravesaste la neblina del pantano con una daga en el cinturón y una <em>voz extraña ardiendo dentro del pecho.</em><br><br>
+La voz tiene dos tonos: uno dorado, otro violeta. Ambos te susurran cosas distintas.`,
+    opciones: [
+      { texto:'Avanzar hacia la puerta del castillo', transicion:'portal_exterior' }
+    ]
+  },
+
+  portal_exterior: {
+    ubicacion: '📍 Círculo Cero · Portal Exterior del Castillo',
+    texto: `Las puertas son de hierro forjado con efigies de ángeles caídos. No hay guardias visibles, pero el suelo alrededor del umbral está cubierto de <em>marcas de arrastre</em> — alguien, o algo, fue llevado hacia adentro hace poco.<br><br>
+Una cadena gruesa asegura los portones. El herrumbre la cubre por mitad. A tu derecha, una ventana lateral tiene los barrotes doblados hacia afuera, como si <strong>algo hubiera salido desde dentro</strong>.<br><br>
+En el suelo, junto a la cadena, reluce un objeto caído: una <em>medalla de bronce</em> con el sello del Inquisidor Valerius.`,
+    opciones: [
+      { texto:'⚔ Usar Solis para quebrar la cadena con energía luminosa', requiereEsfera:'solis', accion:'quebrar_cadena_luz', transicion:'gran_salon' },
+      { texto:'☠ Usar Nox para disolver el metal con entropía caótica', requiereEsfera:'caos', accion:'quebrar_cadena_caos', transicion:'gran_salon' },
+      { texto:'Trepar por la ventana de barrotes doblados', transicion:'pasillo_lateral' },
+      { texto:'Recoger la medalla de bronce del suelo', accion:'recoger_medalla', condicion_ausencia_item:'medalla_valerius' },
+    ]
+  },
+
+  gran_salon: {
+    ubicacion: '📍 Círculo Uno · Gran Salón de Ceniza',
+    texto: `El salón es una catedral profana. Candelabros de hueso penden del techo de bóveda, proyectando sombras con forma de orantes. El suelo de mármol negro está agrietado por raíces que <em>parecen venas</em>, latiendo con una luz tenue y enfermiza.<br><br>
+Tres <strong>Almas Atrapadas</strong> deambulan entre los bancos rotos — no te han visto aún. Sus bocas se mueven en silencio, repitiendo la misma plegaria en bucle. No son enemigos todavía. Son <em>condenados que aún no saben que están muertos.</em><br><br>
+Al fondo, una escalinata doble asciende hacia la oscuridad. A la izquierda, una puerta entreabierta revela el resplandor naranja de una chimenea.`,
+    opciones: [
+      { texto:'☀ [SOLIS] Purificar un Alma Atrapada con luz sagrada', requiereEsfera:'solis', accion:'purificar_alma', transicion:'gran_salon_purificado' },
+      { texto:'💀 [NOX] Absorber la esencia de un Alma Atrapada', requiereEsfera:'caos', accion:'absorber_alma', transicion:'gran_salon_absorbido' },
+      { texto:'Subir la escalinata hacia el piso superior', transicion:'corredor_superior' },
+      { texto:'Entrar por la puerta de la chimenea', transicion:'sala_archivos' },
+    ]
+  },
+
+  gran_salon_purificado: {
+    ubicacion: '📍 Círculo Uno · Gran Salón — Eco de Redención',
+    texto: `La luz de Solis emerge de tus palmas como amanecer comprimido. El Alma Atrapada se congela, su boca-en-silencio por fin se cierra. Durante un instante eterno sus ojos — grises y nublados — recuperan el color castaño de cuando era viva.<br><br>
+Dice una sola palabra en un idioma que no existe ya: <em>"Gracias."</em><br><br>
+Luego se deshace en polvo dorado que asciende en espiral y atraviesa el techo como humo. Las otras dos almas te miran. No con miedo. Con <strong>esperanza.</strong>`,
+    opciones: [
+      { texto:'Purificar las almas restantes', requiereEsfera:'solis', accion:'purificar_todas', transicion:'gran_salon_limpio' },
+      { texto:'Continuar hacia la escalinata', transicion:'corredor_superior' },
+    ]
+  },
+
+  gran_salon_absorbido: {
+    ubicacion: '📍 Círculo Uno · Gran Salón — Eco de Consumo',
+    texto: `Nox no pregunta. Nox <em>toma.</em><br><br>
+La sombra que emana de tu sombra se extiende como tentáculos de tinta hacia el Alma Atrapada. Ella lucha — o al menos el residuo de voluntad que le queda lucha — pero Nox es hambre más antigua que el inframundo. La esencia del condenado es succionada hacia tu interior con un sonido que no es sonido: un <strong>silencio que duele.</strong><br><br>
+Te sientes más denso. Más real. Como si tu sombra proyectara ahora un peso mayor que tu cuerpo. Las otras dos almas <em>huyen hacia las paredes</em> y desaparecen entre las grietas del mármol.`,
+    accion_entrada: 'ganar_fragmento_nox',
+    opciones: [
+      { texto:'Continuar hacia la escalinata', transicion:'corredor_superior' },
+      { texto:'Investigar las grietas donde huyeron las almas', transicion:'sala_cripta_oculta', accion:'descubrir_cripta' },
+    ]
+  },
+
+  gran_salon_limpio: {
+    ubicacion: '📍 Círculo Uno · Gran Salón — Luz Residual',
+    texto: `Las tres almas ascienden como constelaciones fugaces. El salón queda en silencio puro — un silencio diferente al de la muerte. El silencio de un lugar que <em>recuerda haber sido sagrado.</em><br><br>
+Entre los bancos, donde estaba la última alma, encuentras algo que el condenado cargaba en su existencia espectral: un <strong>Fragmento de Mapa</strong> hecho de pergamino espectral. Muestra una parte del castillo que ningún plano mundano registraría.`,
+    accion_entrada: 'recoger_mapa_espectral',
+    opciones: [
+      { texto:'Subir la escalinata', transicion:'corredor_superior' },
+      { texto:'Entrar a la sala de la chimenea', transicion:'sala_archivos' },
+    ]
+  },
+
+  sala_cripta_oculta: {
+    ubicacion: '📍 Círculo Uno · Grietas del Mármol',
+    texto: `Las grietas son demasiado estrechas para pasar, pero cuando Nox se asienta en tus ojos como tinta, el espacio entre las fisuras se expande el tiempo suficiente para ver lo que hay al otro lado: una <em>cámara con olor a agua estancada y siglos</em>.<br><br>
+No puedes entrar. Pero puedes escuchar. Y lo que escuchas — un latido irregular, demasiado lento para ser vivo, demasiado acompasado para ser el castillo — te dice que hay algo aquí abajo que no ha terminado de morir.<br><br>
+La información se asienta en ti como una deuda.`,
+    accion_entrada: () => setF('cripta_detectada'),
+    opciones: [
+      { texto:'Retroceder al Gran Salón', transicion:'gran_salon' },
+    ]
+  },
+
+  pasillo_lateral: {
+    ubicacion: '📍 Círculo Cero · Pasillo Lateral — Las Ventanas Rotas',
+    texto: `Caes dentro rodando sobre el hombro. El pasillo huele a piedra húmeda y a algo orgánico que no debería estar aquí. Una antorcha agonizante en la pared arroja luz suficiente para ver que el corredor se bifurca.<br><br>
+A la izquierda: un susurro constante. Como agua. Como rezo. Como miles de voces en una sola frecuencia.<br><br>
+A la derecha: el eco de pasos. Lentos. Regulares. <em>El sonido de algo que no necesita descansar.</em><br><br>
+En el suelo del cruce, alguien dibujó con su propia sangre un símbolo que reconoces del <strong>Credo</strong>: la señal de "peligro mortal, no avances solo."`,
+    opciones: [
+      { texto:'Ir hacia el susurro (izquierda)', transicion:'sala_archivos' },
+      { texto:'Seguir los pasos (derecha)', transicion:'encuentro_caballero' },
+      { texto:'☀ [SOLIS] Iluminar el símbolo de sangre para leer el mensaje completo', requiereEsfera:'solis', accion:'leer_simbolo', transicion:'pasillo_mensaje_revelado' },
+    ]
+  },
+
+  pasillo_mensaje_revelado: {
+    ubicacion: '📍 Círculo Cero · Pasillo Lateral — El Mensaje del Credo',
+    texto: `La palma de Solis sobre el símbolo lo hace brillar como hierro al rojo vivo. Las letras que se esconden bajo la sangre se vuelven legibles — escritas con carbón, después cubiertas para que solo un iniciado del Credo pudiera leerlas.<br><br>
+<em>"Agente anterior: capturado. El Inquisidor conoce nuestras runas. Hay un <strong>Traidor en el Credo.</strong> La llave de la mazmorra está en la sala de los archivos. Ve al segundo círculo. Encuentra el <strong>Núcleo del Reloj Detenido.</strong>"</em><br><br>
+La información te recompone. También te eriza los nervios. Si hay un traidor, significa que <strong>Valerius ya sabe que estás aquí.</strong>`,
+    accion_entrada: () => setF('mensaje_credo_leido'),
+    opciones: [
+      { texto:'Ir hacia los susurros — Sala de Archivos', transicion:'sala_archivos' },
+      { texto:'Prepararse y avanzar hacia los pasos', transicion:'encuentro_caballero' },
+    ]
+  },
+
+  sala_archivos: {
+    ubicacion: '📍 Círculo Uno · Sala de los Archivos y la Chimenea',
+    texto: `La chimenea es el corazón de esta sala y lleva décadas ardiendo con un fuego que <em>no consume</em> la madera bajo él. Los estantes están atestados de pergaminos, algunos flotando en una bruma estática a media altura.<br><br>
+Un escritorio enorme ocupa el centro. Sobre él, abierto, un diario encuadernado en piel que no es animal. La primera página dice: <strong>"Registro de Condenas — Inquisidor Valerius — Año 47 de la Purga."</strong><br><br>
+La chimenea proyecta dos sombras donde solo hay una persona en la sala: tú.`,
+    opciones: [
+      { texto:'Leer el diario del Inquisidor', accion:'leer_diario', transicion:'sala_archivos_diario' },
+      { texto:'☠ [NOX] Interrogar a la segunda sombra', requiereEsfera:'caos', accion:'interrogar_sombra', transicion:'sala_archivos_sombra' },
+      { texto:'Buscar la llave de la mazmorra', requiereEnInventario:'mapa_espectral', accion:'encontrar_llave', transicion:'sala_archivos_llave' },
+      { texto:'Regresar al Gran Salón', transicion:'gran_salon' },
+    ]
+  },
+
+  sala_archivos_diario: {
+    ubicacion: '📍 Círculo Uno · Los Archivos — El Diario de Valerius',
+    texto: `Las páginas del diario son frías al tacto aunque están junto al fuego eterno. Lo que lees no es la crónica de un inquisidor. Es la crónica de un <em>hombre que se fue perdiendo.</em><br><br>
+Las primeras entradas son normales. Capturas, juicios, condenas. Pero en la entrada del <strong>Año 47, Día 300</strong>, la caligrafía cambia. Se vuelve más grande, más oscura, como escrita desde una mano que aprieta demasiado el plomo.<br><br>
+<em>"He recordado. No soy Valerius. Nunca lo fui. Soy <strong>Malakor</strong>, el que cosechó almas antes de que los dioses aprendieran a contarlas. Y hay otro que despertará pronto. Mi gemelo. Mi opuesto. Debo encontrarlo antes de que recuerde quién es."</em><br><br>
+La página siguiente está en blanco. Pero cuando la sostienes contra el fuego, aparece una palabra invisible: <strong>"TÚ."</strong>`,
+    accion_entrada: 'revelar_identidad_valerius',
+    opciones: [
+      { texto:'Cerrar el diario y procesar lo leído', transicion:'sala_archivos' },
+    ]
+  },
+
+  sala_archivos_sombra: {
+    ubicacion: '📍 Círculo Uno · Los Archivos — El Eco en la Sombra',
+    texto: `Cuando Nox se asienta en tus ojos como tinta sobre agua, la segunda sombra <em>se mueve.</em> Se separa de la pared. Tiene una silueta humana pero sus bordes están dentados, irregulares, como si hubiera sido desgarrada de su dueño.<br><br>
+<em>"Tú... hueles a alba,"</em> dice con una voz que es estática y viento y hueso. <em>"El Segador me atrapó aquí hace tres siglos. Soy lo que quedó de su último heraldo antes de que Malakor lo consumiera. Puedo guiarte. A cambio de algo."</em><br><br>
+Te pide que <strong>la lleves contigo</strong> — no en el inventario. Dentro. Como hizo Nox.`,
+    opciones: [
+      { texto:'☠ Absorber el eco de sombra (ganas información, pierdes algo)', requiereEsfera:'caos', accion:'absorber_eco', transicion:'sala_archivos_eco_absorbido' },
+      { texto:'Rechazar la oferta', transicion:'sala_archivos' },
+    ]
+  },
+
+  sala_archivos_eco_absorbido: {
+    ubicacion: '📍 Círculo Uno · Los Archivos — La Absorción del Eco',
+    texto: `El eco entra como agua helada por tus poros. No es doloroso. Es <em>incómodo</em>, de la forma en que lo es la verdad cuando la escuchas por primera vez.<br><br>
+Dentro de ti, el eco habla con la voz de alguien que lo vio todo desde el principio: el castillo tiene <strong>siete Círculos</strong>. Valerius está en el Séptimo. Entre tú y él hay seis capas de condenados, trampas divinas y <em>una habitación que no existe en el plano físico</em> — la <strong>Antecámara del Abismo</strong>, donde Malakor hizo su pacto.<br><br>
+Pero la absorción tiene un costo: durante el proceso, Nox tomó un fragmento de tu <em>recuerdo del Credo</em>. Sabes que perteneces a algo. Ya no recuerdas qué.`,
+    accion_entrada: 'ganar_conocimiento_castillo',
+    opciones: [
+      { texto:'Continuar la búsqueda de la llave', transicion:'sala_archivos' },
+      { texto:'Subir al segundo Círculo', transicion:'corredor_superior' },
+    ]
+  },
+
+  sala_archivos_llave: {
+    ubicacion: '📍 Círculo Uno · Los Archivos — La Llave Hallada',
+    texto: `El <strong>Fragmento de Mapa Espectral</strong> pulsa en tus manos como un segundo corazón. Sus líneas te señalan no un cajón, no un estante — sino una <em>baldosa específica del suelo</em>, marcada con el mismo símbolo que usaba el agente del Credo capturado.<br><br>
+La levantas. Debajo, en un hueco forrado de terciopelo negro, descansa la <strong>Llave de la Mazmorra del Primer Círculo</strong>: hierro antiguo con la cabeza en forma de cráneo coronado.<br><br>
+Pesa más de lo que debería. Como si cargara <em>la historia de todo lo que abrió y lo que selló.</em>`,
+    accion_entrada: 'recoger_llave_mazmorra',
+    opciones: [
+      { texto:'Subir al corredor superior', transicion:'corredor_superior' },
+      { texto:'Ir a la mazmorra con la llave', transicion:'mazmorra_entrada', requiereEnInventario:'llave_mazmorra' },
+    ]
+  },
+
+  encuentro_caballero: {
+    ubicacion: '📍 Círculo Uno · Pasillo del Primer Caballero',
+    combate: true,
+    enemigo: 'caballero_condenado',
+    transicion_victoria: 'corredor_superior',
+    transicion_derrota:  'gran_salon',
+    texto: `Lo ves antes de que te vea a ti: un <strong>Caballero Condenado</strong>, armadura de placas negras soldada a su cuerpo por óxido y magia corrompida. Su visor está abierto y donde deberían estar los ojos hay dos brasas del color de la carne quemada.<br><br>
+No camina. <em>Desliza.</em><br><br>
+Te detecta cuando estás a tres metros. La espada — enorme, dentada, con runas de condena grabadas en el filo — se alza con un movimiento que ningún cuerpo vivo debería poder hacer.`,
+    opciones: []
+  },
+
+  corredor_superior: {
+    ubicacion: '📍 Círculo Dos · Corredor del Reloj Detenido',
+    texto: `La escalinata termina en un corredor largo donde el tiempo <em>literalmente parece haberse detenido.</em> Una polilla flota suspendida en el aire a la altura de tus ojos. Una vela derramada tiene su gota de cera congelada a centímetros del suelo.<br><br>
+Al fondo del corredor, un reloj de pie de tres metros se ha detenido en las <strong>3:33 AM</strong>. Su péndulo está quieto. Sus engranajes, expuestos a través de una vitrina de cristal roto, están cubiertos de un musgo luminoso y violáceo.<br><br>
+En el centro de la esfera del reloj, visible a través del cristal fracturado, late algo como un corazón: <em>el Núcleo del Reloj Detenido.</em>`,
+    opciones: [
+      { texto:'☀ [SOLIS] Reactivar el reloj con energía luminosa', requiereEsfera:'solis', accion:'reactivar_reloj', transicion:'corredor_reloj_reactivado' },
+      { texto:'☠ [NOX] Extraer el Núcleo directamente', requiereEsfera:'caos', accion:'extraer_nucleo', transicion:'corredor_nucleo_extraido' },
+      { texto:'Examinar el corredor en busca de trampas primero', accion:'examinar_corredor', transicion:'corredor_examinado' },
+      { texto:'Bajar al Primer Círculo', transicion:'gran_salon' },
+    ]
+  },
+
+  corredor_reloj_reactivado: {
+    ubicacion: '📍 Círculo Dos · El Reloj Despierto',
+    texto: `El primer tictac del reloj reactivado es como un trueno silencioso. El corredor entero <em>exhala</em> — la polilla cae al suelo, la gota de cera se estrella, y algo en las paredes cruje y se asienta.<br><br>
+El tiempo vuelve a fluir en este lugar. Y con el tiempo, vuelven los ecos: puedes escuchar fragmentos de conversaciones pasadas. Voces del Inquisidor. De sus guardias. De alguien que <strong>lloraba detrás de una pared que no tiene puerta.</strong><br><br>
+El Núcleo del Reloj ahora late libre en la esfera abierta. También, donde el péndulo se detuvo, colgaba un objeto atado con hilo de cobre: un <strong>Sello de Paso al Tercer Círculo.</strong>`,
+    accion_entrada: 'recoger_nucleo_solis',
+    opciones: [
+      { texto:'Tomar el Sello de Paso', accion:'recoger_sello_tercer_circulo', transicion:'corredor_reloj_reactivado', condicion_ausencia_item:'sello_tercer_circulo' },
+      { texto:'Investigar la voz detrás de la pared', transicion:'camara_prisionero' },
+    ]
+  },
+
+  corredor_nucleo_extraido: {
+    ubicacion: '📍 Círculo Dos · La Extracción de Nox',
+    texto: `Nox no espera. Nox <em>arranca.</em><br><br>
+Tu mano atraviesa el cristal roto sin cortarse — en modo Nox tu cuerpo es más sombra que carne — y rodeas el Núcleo con los dedos. Pulsa como un corazón asustado. Lo sueltas. No, <em>lo consumes.</em><br><br>
+La energía temporal del Núcleo se integra en ti de forma violenta: durante un instante ves <strong>todos los momentos que el reloj registró</strong> — el día en que Valerius quemó vivo a un sacerdote en este mismo corredor, el día en que firmó el pacto con el Abismo, el día en que su cara cambió y sus ojos se vaciaron.<br><br>
+El reloj, sin su núcleo, <em>colapsa en polvo.</em> Algo de valor se ha perdido. Algo de poder se ha ganado.`,
+    accion_entrada: 'recoger_nucleo_nox',
+    opciones: [
+      { texto:'Avanzar hacia la cámara del prisionero', transicion:'camara_prisionero' },
+      { texto:'Bajar al Primer Círculo', transicion:'gran_salon' },
+    ]
+  },
+
+  corredor_examinado: {
+    ubicacion: '📍 Círculo Dos · Corredor — Análisis del Terreno',
+    texto: `Tu entrenamiento en el <strong>Credo</strong> se activa como un mecanismo que no recuerda quién lo instaló pero sabe exactamente cómo funciona.<br><br>
+Las paredes del corredor tienen cuatro trampas de aguja: triggers en el suelo a los pasos 3, 7, 11 y 15 desde la escalinata. Las ves ahora que las buscas — leves elevaciones en las baldosas, <em>casi imperceptibles.</em><br><br>
+También ves algo más: a dos metros del reloj, hay una <strong>baldosa con el sello del Credo</strong> grabado — alguien del gremio estuvo aquí antes. Debajo podría haber un mensaje, una trampa de contingencia o suministros.`,
+    opciones: [
+      { texto:'Desactivar las trampas y avanzar con cuidado', accion:'desactivar_trampas', transicion:'corredor_superior' },
+      { texto:'Levantar la baldosa con el sello del Credo', accion:'investigar_baldosa_credo', transicion:'corredor_baldosa' },
+    ]
+  },
+
+  corredor_baldosa: {
+    ubicacion: '📍 Círculo Dos · La Baldosa del Credo',
+    texto: `Debajo de la baldosa sellada hay un <em>compartimento de emergencia</em>. Dentro encuentras:<br><br>
+Una <strong>Poción de Médula</strong> (restaura vitalidad en combate severo) y una nota escrita con la letra del agente capturado: <em>"Si lees esto, llegaste más lejos que yo. Hay algo en la mazmorra que Valerius teme más que la luz. Una <strong>presa que no ha podido romper</strong> en tres siglos. Encuéntrala."</em>`,
+    accion_entrada: 'recoger_pocion_medula',
+    opciones: [
+      { texto:'Continuar hacia el reloj detenido', transicion:'corredor_superior' },
+    ]
+  },
+
+  camara_prisionero: {
+    ubicacion: '📍 Círculo Dos · Cámara de la Voz en la Pared',
+    texto: `La pared que no tiene puerta tiene un defecto: si aplicas presión en el ángulo correcto, cede. El Credo te enseñó a ver lo que está escondido <em>por su ausencia de imperfecciones.</em><br><br>
+La cámara secreta es pequeña como un armario. En ella, sentada sobre piedra fría con los tobillos encadenados por hierro grabado con runas de supresión, hay una mujer.<br><br>
+Sus ojos, cuando te mira, son <strong>dos tipos distintos de luz</strong>: uno dorado, uno violeta. Como los tuyos.<br><br>
+<em>"Tardaste,"</em> dice. <em>"Soy Seraphine. Yo fui el primer Arconte. Valerius me capturó hace tres siglos cuando intenté hacer exactamente lo que tú haces ahora. Y tengo que decirte algo que cambiará todo lo que crees saber sobre este Credo."</em>`,
+    opciones: [
+      { texto:'Escuchar a Seraphine', transicion:'seraphine_revelacion' },
+      { texto:'☀ [SOLIS] Intentar romper las runas de supresión', requiereEsfera:'solis', accion:'romper_runas_supresion', transicion:'seraphine_libre' },
+      { texto:'Desconfiar y mantener distancia', transicion:'seraphine_desconfianza' },
+    ]
+  },
+
+  seraphine_revelacion: {
+    ubicacion: '📍 Círculo Dos · La Revelación de la Primera Arconte',
+    texto: `Seraphine habla despacio, como alguien que ha medido cada palabra durante trescientos años de silencio.<br><br>
+<em>"El Credo no te envió aquí para matar a Valerius. Te enviaron para <strong>convertirte en él</strong>. Cuando Malakor muere, su esencia necesita un recipiente. El Credo lleva siglos preparando ese recipiente — un asesino entrenado en las artes del silencio y la eficiencia, sin familia, sin ataduras, con la capacidad psíquica de contener una deidad. <strong>Tú eres el nuevo cuerpo que el Credo prometió a Malakor a cambio de poder.</strong>"</em><br><br>
+Te señala con el dedo. Hay certeza en su gesto, no esperanza.<br><br>
+<em>"Pero yo puedo ofrecerte una alternativa. Solis — la luz que llevas — puede <strong>sellar a Malakor</strong> en lugar de recibirlo. Pero para eso necesitas despertar completamente. Y despertar duele."</em>`,
+    opciones: [
+      { texto:'☀ [SOLIS] Aceptar el despertar de Alaric', requiereEsfera:'solis', accion:'despertar_alaric', transicion:'seraphine_libre' },
+      { texto:'☠ [NOX] Rechazar sus palabras y dejar que Nox juzgue', requiereEsfera:'caos', accion:'consultar_nox', transicion:'seraphine_nox_juicio' },
+      { texto:'Preguntar: ¿Quién fue el traidor del Credo?', transicion:'seraphine_traidor' },
+    ]
+  },
+
+  seraphine_traidor: {
+    ubicacion: '📍 Círculo Dos · El Nombre del Traidor',
+    texto: `Seraphine no duda ni un segundo.<br><br>
+<em>"<strong>El Maestro del Credo.</strong> Siempre fue él. Malakor tomó su cuerpo hace veinte años — antes de que tú fueras reclutado. Todo lo que crees saber sobre tu entrenamiento, tu misión, tu propósito — fue diseñado por el Segador de Almas. Incluido tú."</em><br><br>
+La palabra <em>"incluido"</em> cae en tu mente como una piedra en agua oscura. Los círculos se expanden. Y no terminan.`,
+    accion_entrada: () => setF('traidor_revelado'),
+    opciones: [
+      { texto:'Liberar a Seraphine', requiereEsfera:'solis', accion:'romper_runas_supresion', transicion:'seraphine_libre' },
+      { texto:'Necesitas tiempo para procesar. Explorar el castillo.', transicion:'corredor_superior' },
+    ]
+  },
+
+  seraphine_nox_juicio: {
+    ubicacion: '📍 Círculo Dos · El Juicio de Nox',
+    texto: `Nox habla desde dentro de ti. No con palabras. Con <em>certeza absoluta</em> que se instala en tus huesos como frío de cripta.<br><br>
+La mujer dice la verdad.<br><br>
+No toda — Nox puede sentir que omite algo sobre sí misma, algo que tiene que ver con por qué lleva sus propios ojos bicolor. Pero lo esencial, lo que más importa, <em>es verdad.</em><br><br>
+<em>"Interesante,"</em> murmuras con una voz que es el doble de grave. <em>"Tu Nox habla por ti. Bien. Yo también tenía un Nox, una vez."</em> Seraphine te mira con algo que podría ser miedo o reconocimiento.`,
+    opciones: [
+      { texto:'Liberar a Seraphine y continuar juntos', accion:'romper_runas_supresion', transicion:'seraphine_libre' },
+    ]
+  },
+
+  seraphine_libre: {
+    ubicacion: '📍 Círculo Dos · Seraphine Liberada',
+    texto: `Las runas de supresión ceden con un sonido como cristal roto al revés — un <em>tintineo que asciende.</em> Seraphine se pone de pie y hay algo en su postura que comunica siglos de paciencia convertidos en resolución.<br><br>
+Coloca su mano sobre la tuya durante un momento. Sientes el contacto de Solis con Solis — como reconocerse en un espejo que lleva trescientos años sin pulir.<br><br>
+<em>"El Tercer Círculo tiene la <strong>Antecámara del Umbral</strong>. Si llegas allí antes de que Valerius sepa que me has liberado, podemos sellar la Puerta del Abismo y cortar el poder de Malakor de raíz. Pero Arconte — si en algún momento dudas, si Nox te convence de que absorber a Valerius en lugar de sellarlo es la solución más eficiente — habrás hecho exactamente lo que el Credo planeó que hicieras."</em><br><br>
+Te mira fijo. <em>"¿Recuerdas tu nombre?"</em>`,
+    accion_entrada: 'liberar_seraphine',
+    opciones: [
+      { texto:"☀ 'Me llamo Alaric. Arconte del Alba.'", requiereEsfera:'solis', accion:'recordar_nombre_luz', transicion:'final_acto1_luz' },
+      { texto:"☠ 'No. Pero sé lo que soy.'", requiereEsfera:'caos', accion:'recordar_nombre_caos', transicion:'final_acto1_caos' },
+    ]
+  },
+
+  seraphine_desconfianza: {
+    ubicacion: '📍 Círculo Dos · La Sombra de la Duda',
+    texto: `Te quedas en el umbral. Tus ojos la estudian como el Credo te enseñó: microexpresiones, postura, ritmo de respiración. Tres siglos encadenada deberían haberla roto. No lo hicieron.<br><br>
+Eso podría significar fortaleza extraordinaria. O podría significar que <em>no es lo que aparenta.</em><br><br>
+Seraphine no te suplica. No te amenaza. Simplemente dice: <em>"Está bien. El miedo es inteligente. Pero el tiempo que tardas en confiar es tiempo que Valerius usa para prepararse. Esa es la trampa más antigua: la duda nos hace lentos, y la lentitud nos hace muertos."</em>`,
+    opciones: [
+      { texto:'Decidir liberarla', transicion:'seraphine_revelacion' },
+      { texto:'Dejarla encadenada por ahora y explorar', transicion:'corredor_superior' },
+    ]
+  },
+
+  mazmorra_entrada: {
+    ubicacion: '📍 Círculo Uno · Mazmorra Inferior — Umbral',
+    texto: `La llave gira en la cerradura con un sonido que parece demasiado satisfactorio para un lugar tan oscuro. La puerta de la mazmorra se abre hacia adentro, exhalando aire frío y el olor a piedra mojada y algo que reconoces como <em>sangre vieja y sal.</em><br><br>
+Las escaleras de piedra descienden en espiral. A los lados hay celdas con puertas de barrotes. Algunas están vacías. Una no.<br><br>
+Desde esa celda no llega ningún sonido. Lo que la diferencia de las demás es que en los barrotes hay grabadas <strong>runas de supresión idénticas a las que encadenaban a Seraphine.</strong>`,
+    opciones: [
+      { texto:'Investigar la celda con runas de supresión', transicion:'camara_prisionero' },
+      { texto:'Explorar el resto de la mazmorra', transicion:'gran_salon' },
+    ]
+  },
+
+  // ── FINALES ACTO I ────────────────────────────────────
+  final_acto1_luz: {
+    ubicacion: '📍 Final del Acto I · La Memoria del Alba',
+    texto: `El nombre aterriza en ti como una llave en una cerradura que lleva décadas oxidada.<br><br>
+<strong>Alaric.</strong><br><br>
+El Arconte del Alba. La reencarnación de la primera chispa, el Dios de la Luz Pura que en el principio de los tiempos nombró las estrellas antes de que existiera lenguaje para nombrarlas.<br><br>
+Solis en tu interior <em>canta.</em><br><br>
+Seraphine sonríe por primera vez. Es una sonrisa pequeña, casi fracturada de tanto haber esperado. <em>"Ahí estás. Sabía que seguías dentro."</em><br><br>
+El castillo sobre vosotros parece exhalar. En algún lugar del Séptimo Círculo, <strong>el Inquisidor Valerius</strong> levanta la cabeza de sus pergaminos y sus ojos sin iris se abren un milímetro más.<br><br>
+También lo sintió.<br><br>
+<strong>— Fin del Acto I —</strong>`,
+    accion_entrada: 'completar_acto1_camino_luz',
+    opciones: [
+      { texto:'⟶ Continuar al Acto II', accion:'inicio_acto2' }
+    ]
+  },
+
+  final_acto1_caos: {
+    ubicacion: '📍 Final del Acto I · La Identidad de Nox',
+    texto: `No lo dices con arrogancia. Lo dices con la certeza de algo que ha quemado durante milenios.<br><br>
+<em>"Sé lo que soy."</em><br><br>
+Nox resuena como un acorde profundo. Seraphine asiente despacio, y en sus ojos hay algo nuevo que no estaba antes: <em>no miedo. Respeto cauteloso.</em><br><br>
+<em>"Entonces llevas más de lo que cualquier Arconte debería portar. Solis <strong>y</strong> la semilla de Nox. Eso cambia el cálculo de todo. Incluyendo el mío."</em><br><br>
+El camino al Acto II es el mismo. Pero las puertas que se abren ante ti son <strong>distintas.</strong><br><br>
+En el Séptimo Círculo, Malakor cierra los ojos de Valerius y por primera vez en tres siglos, <em>siente algo parecido al miedo.</em><br><br>
+<strong>— Fin del Acto I —</strong>`,
+    accion_entrada: 'completar_acto1_camino_caos',
+    opciones: [
+      { texto:'⟶ Continuar al Acto II', accion:'inicio_acto2' }
+    ]
+  },
+
+}; // fin historiaActo1
+
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// HISTORIA — ACTO II: El Tercer Círculo y la Antecámara
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+const historiaActo2 = {
+
+  // ── TRANSICIÓN DE ACTO ───────────────────────────────
+  acto2_inicio: {
+    ubicacion: '✦ Acto II — El Tercer Círculo y la Antecámara',
+    texto: `<strong>El Acto I ha terminado.</strong><br><br>
+Lo que dejaste en el Castillo del Alba —los ecos absorbidos o purificados, el nombre del traidor arrancado al fuego, la primera Arconte liberada o abandonada a su celda— viaja contigo como cicatrices invisibles en el alma. El Tercer Círculo te espera con su silencio de siglos y sus guardianes sin voluntad propia.<br><br>
+<em>No recuerdas cuándo empezaste a escuchar dos voces en tu interior. Una cálida y otra fría. Ambas tuyas. Ambas antiguas.</em><br><br>
+Más abajo, donde el castillo deja de ser arquitectura y se convierte en intención, la <strong>Antecámara del Abismo</strong> aguarda.`,
+    accion_entrada: () => setF('acto2_iniciado'),
+    opciones: [
+      { texto:'✦ Descender al Tercer Círculo', transicion:'circulo3_umbral' }
+    ]
+  },
+
+  // ── CÍRCULO III ──────────────────────────────────────
+  circulo3_umbral: {
+    ubicacion: 'Umbral del Tercer Círculo',
+    texto: `La escalera que desciende no está hecha de piedra, sino de algo que se <em>parece</em> a ella. Cada peldaño cede un milímetro demasiado tarde bajo tu peso, como si el material aún estuviera aprendiendo a ser sólido.<br><br>
+Las paredes del Tercer Círculo exudan una luminiscencia opaca —igual que la grasa de una vela a punto de extinguirse— y el aire sabe a metal frío y a algo más antiguo que el metal. Las <strong>Almas Guardia</strong> patrullan aquí abajo: fragmentos de Arcontes que fallaron su juramento, disueltos en función pura. No duermen. No negocian. Detectan intención, no carne.`,
+    textoSeraphine: `<em>«Las Almas Guardia no ven la piel»</em>, susurra Seraphine. <em>«Ven el propósito. La esfera de Nox imita la muerte lo suficiente para confundirlas. Pero no abuses de esa imitación, Alaric. Las cosas que finges ser acaban siendo lo que eres.»</em>`,
+    accion_entrada: () => { document.getElementById('stealth-bar').classList.add('visible'); },
+    opciones: [
+      { texto:'Avanzar con cautela hacia el corredor vigilado', transicion:'circulo3_corredor_vigilado' },
+      { texto:'Examinar las marcas del umbral', transicion:'circulo3_umbral_marcas' },
+      { texto:'✦ Consultar a Seraphine', transicion:'circulo3_seraphine_consejo', requiereFlag:'seraphine_liberada' },
+    ]
+  },
+
+  circulo3_umbral_marcas: {
+    ubicacion: 'Umbral del Tercer Círculo — Inscripciones',
+    texto: `Las marcas en el umbral son advertencias grabadas por el Credo antes de que el Credo se corrompiera. Reconoces la caligrafía del edicto: la misma que viste en el Pasillo de las Ventanas Rotas.<br><br>
+<em>«El que pasa sin nombre es devorado. El que pasa con dos nombres es libre.»</em><br><br>
+Dos nombres. <strong>Alaric</strong> y el otro. El que duerme en la esfera oscura cuando usas la luz, y en la esfera clara cuando usas la oscuridad. El nombre que el castillo ya sabe aunque tú aún finjas que no.`,
+    accion_entrada: () => setF('inscripcion_umbral_leida'),
+    opciones: [
+      { texto:'Avanzar al corredor vigilado', transicion:'circulo3_corredor_vigilado' },
+    ]
+  },
+
+  circulo3_seraphine_consejo: {
+    ubicacion: 'Umbral del Tercer Círculo — Consejo de Seraphine',
+    texto: `Seraphine examina el umbral con sus dedos largos, trazando las inscripciones sin tocarlas del todo. Cuando gira hacia ti su ojo izquierdo —el del Solis— no parpadea.<br><br>
+<em>«El Tercer Círculo fue diseñado para nosotros»</em>, dice. <em>«Para los Arcontes. Para hacernos dudar antes de alcanzar el núcleo del castillo. Las trampas no matan: paralizan. Te hacen olvidar quién eres hasta que te conviertes en otra Alma Guardia.»</em><br><br>
+Una pausa. Luego: <em>«Si oyes mi voz volverse distante en algún momento, no la sigas. No seré yo.»</em>`,
+    accion_entrada: () => setF('consejo_seraphine_3'),
+    opciones: [
+      { texto:'Preguntar sobre el Heraldo Corrompido', transicion:'circulo3_seraphine_heraldo_info' },
+      { texto:'Avanzar al corredor', transicion:'circulo3_corredor_vigilado' },
+    ]
+  },
+
+  circulo3_seraphine_heraldo_info: {
+    ubicacion: 'Umbral del Tercer Círculo — Sobre el Heraldo',
+    texto: `Seraphine tarda en responder. Como si el nombre le costara pronunciarlo.<br><br>
+<em>«El Heraldo era el guardián de la transición entre el Cuarto y el Quinto Círculo. El Arconte más joven del Credo. Malakor lo corrompió primero —antes que a nadie— porque su fe era perfecta y la fe perfecta es la grieta más ancha por donde entra el veneno.»</em><br><br>
+Sus manos se cierran levemente. <em>«Cambia de naturaleza cada dos latidos del castillo. Solis, luego Nox, luego Solis. Atacarlo con la misma esfera que porta es herir el agua con agua. Necesitas el opuesto. Siempre el opuesto.»</em>`,
+    accion_entrada: () => setF('estrategia_heraldo_conocida'),
+    opciones: [
+      { texto:'Avanzar al corredor vigilado', transicion:'circulo3_corredor_vigilado' },
+    ]
+  },
+
+  circulo3_corredor_vigilado: {
+    ubicacion: 'Corredor de las Almas Guardia',
+    texto: `El corredor mide treinta metros de extremo a extremo. En él se mueven tres formas que no son del todo luz ni del todo sombra —se desplazan en óvales repetitivos, como peces en un tanque demasiado pequeño—. Las <strong>Almas Guardia</strong>. Cada vez que una pasa cerca, el aire vibra con algo entre lamento y hambre.<br><br>
+El suelo está cubierto de una capa fina de polvo gris. Tus pasos lo perturbarán. El silencio aquí no es ausencia de sonido: es una sustancia que puede romperse.`,
+    opciones: [
+      { texto:'🌑 Avanzar envuelto en sombra (Nox)', transicion:'circulo3_avance_nox', requiereEsfera:'caos' },
+      { texto:'☀ Purificar el corredor con luz (Solis — arriesgado)', transicion:'circulo3_avance_solis', requiereEsfera:'solis' },
+      { texto:'Esperar a que los patrones se abran y avanzar despacio', transicion:'circulo3_avance_espera' },
+      { texto:'Correr directamente hacia el otro extremo', transicion:'circulo3_detectado_combate' },
+    ]
+  },
+
+  circulo3_avance_nox: {
+    ubicacion: 'Corredor de las Almas Guardia — Sigilo',
+    texto: `La esfera de Nox envuelve tu presencia como tinta en agua. Las Almas Guardia rozan con su órbita el espacio que ocupas hace un segundo y encuentran... el eco de la muerte. Algo que no tiene intención. Algo que no amenaza su función.<br><br>
+Cruzas el corredor en treinta pasos medidos. En el décimoquinto, una de las formas se detiene a un metro de tu hombro. Su núcleo —una luz ceniza que late como una pupila— te escanea sin verte. <em>Hueles a aquello que ya no puede ser cazado.</em><br><br>
+Llegas al otro extremo. El nivel de alerta no ha aumentado.`,
+    accion_entrada: () => { if(estado.alerta>0) estado.alerta=Math.max(0,estado.alerta-1); setF('corredor3_cruzado_sigilo'); actualizarAlertas(); },
+    opciones: [
+      { texto:'Continuar hacia la Cámara de los Espectros', transicion:'circulo3_camara_espectros' },
+    ]
+  },
+
+  circulo3_avance_solis: {
+    ubicacion: 'Corredor de las Almas Guardia — Purificación',
+    texto: `Despliegas la luz de Solis en un pulso radial. Las Almas Guardia se contraen, sus núcleos parpadeando con algo parecido al dolor. Dos de ellas se disuelven en franjas de ceniza que caen en silencio. La tercera...<br><br>
+La tercera emite un sonido. No con la voz —no tiene voz— sino con el espacio a su alrededor, que vibra en una frecuencia que el castillo reconoce como <strong>alarma</strong>.<br><br>
+Cruzas el corredor pero la advertencia ya viaja por las paredes. El nivel de alerta ha aumentado.`,
+    accion_entrada: () => { estado.alerta=Math.min(3,estado.alerta+1); setF('corredor3_purificado'); actualizarAlertas(); mostrarToast('⚠ Alerta +1'); },
+    opciones: [
+      { texto:'Apresurarse hacia la Cámara de los Espectros', transicion:'circulo3_camara_espectros' },
+    ]
+  },
+
+  circulo3_avance_espera: {
+    ubicacion: 'Corredor de las Almas Guardia — Espera',
+    texto: `Te detienes en el umbral y observas los patrones durante lo que podría ser un minuto o podría ser una hora. El tiempo en el Tercer Círculo se ha vuelto consultivo: avanza si tú avanzas, se detiene si te detienes.<br><br>
+Encuentras una ventana entre las órbitas. Cinco segundos de margen. Cruzas en cuatro, pegado a la pared izquierda, pisando donde el polvo ya estaba perturbado por la propia Alma Guardia.<br><br>
+<em>No eres invisible. Eres paciente. A veces es suficiente.</em>`,
+    opciones: [
+      { texto:'Continuar hacia la Cámara de los Espectros', transicion:'circulo3_camara_espectros' },
+    ]
+  },
+
+  circulo3_detectado_combate: {
+    ubicacion: 'Corredor de las Almas Guardia — ¡Detectado!',
+    texto: `Tres pasos dentro del corredor, el Alma Guardia más cercana gira como un eje roto. Su núcleo se torna rojo hueso. No corre hacia ti —se teletransporta, con esa mecánica horrible de cosas que se mueven sin moverse— y estás dentro del combate antes de haber decidido empezar.`,
+    combate: true, enemigo:'alma_guardia', opciones:[],
+    transicion_victoria:'circulo3_camara_espectros', transicion_derrota:'circulo3_umbral',
+  },
+
+  circulo3_camara_espectros: {
+    ubicacion: 'Cámara de los Espectros',
+    texto: `La cámara circular al final del corredor fue, en otro tiempo, un lugar de reunión. Todavía lo es, en cierto modo: aquí se congregan los ecos de quienes murieron en el Tercer Círculo antes de que existiera la muerte en el Tercer Círculo.<br><br>
+No son hostiles. Son <em>residuos</em>. Impresiones en el espacio que repiten fragmentos de sus últimas intenciones como un disco rayado. Uno de ellos sostiene lo que parece un mapa. Otro repite en bucle: <em>«El altar no acepta la sangre del que no fue elegido.»</em><br><br>
+Hay tres salidas: un pasillo sellado con marcas del Credo al norte, una puerta baja al oeste que huele a piedra húmeda, y la escalera que desciende al Cuarto Círculo al fondo.`,
+    textoSeraphine: `Seraphine observa los espectros con una expresión que no es exactamente pena. <em>«Los reconozco»</em>, dice en voz muy baja. <em>«Eran del Séptimo Círculo cuando yo llegué. El castillo los fue comprimiendo hacia abajo. Con cada generación de Arcontes que fallaba, los ecos descendían un nivel.»</em> Una pausa larga. <em>«Así es como el castillo tiene memoria.»</em>`,
+    opciones: [
+      { texto:'Examinar el Altar Sellado al norte', transicion:'circulo3_altar_sellado' },
+      { texto:'Explorar la puerta occidental (Cripta)', transicion:'circulo3_cripta', requiereFlag:'cripta_descubierta' },
+      { texto:'Descender directamente al Cuarto Círculo', transicion:'circulo4_antesala' },
+    ]
+  },
+
+  circulo3_altar_sellado: {
+    ubicacion: 'Altar Sellado del Credo',
+    texto: `El altar está grabado con los Cinco Mandatos del Credo Ancestral. Los cuatro primeros los conoces; el quinto está tachado con una marca que reconoces: la firma de Malakor, superpuesta a la del Maestro del Credo. La misma mano. El mismo traidor.<br><br>
+El sello que cierra el altar es de naturaleza burocrática —requiere una declaración de fe genuina— y por lo tanto es el más difícil de todos los sellos. La fe no puede falsificarse ante el castillo. El castillo sabe.`,
+    opciones: [
+      { texto:'✦ Sabotear el sello (requiere haber leído el Mensaje del Credo)', transicion:'circulo3_altar_saboteado', requiereFlag:'mensaje_credo_leido' },
+      { texto:'Estudiar los Cinco Mandatos', transicion:'circulo3_mandatos' },
+      { texto:'Retroceder a la Cámara', transicion:'circulo3_camara_espectros' },
+    ]
+  },
+
+  circulo3_mandatos: {
+    ubicacion: 'Altar Sellado — Los Cinco Mandatos',
+    texto: `Los cuatro primeros mandatos del Credo son conocidos por cualquier Arconte iniciado:<br><br>
+<em>I. No consumas lo que no te fue dado.<br>
+II. No reveles el nombre de la Esencia al no-iniciado.<br>
+III. No traspases el Séptimo Círculo sin el Sello de los Siete.<br>
+IV. No levantes la mano sobre otro Arconte antes del Juicio.</em><br><br>
+El quinto, tachado bajo la firma de Malakor:<br><br>
+<em>V. No <strong>████████████</strong> la Antecámara del Abismo, pues lo que entra con voluntad dividida <strong>████████████</strong> en lo que el Abismo ha esperado siempre.</em>`,
+    accion_entrada: () => setF('quinto_mandato_visto'),
+    opciones: [
+      { texto:'Retroceder al Altar', transicion:'circulo3_altar_sellado' },
+    ]
+  },
+
+  circulo3_altar_saboteado: {
+    ubicacion: 'Altar Sellado — Sabotaje',
+    texto: `El Mensaje del Credo que leíste en el Pasillo de las Ventanas Rotas contenía algo que el Maestro no quería que vieras: <em>la palabra de inversión</em>. La clave para convertir un sello de fe en un sello de duda.<br><br>
+La pronuncias hacia el altar. El castillo la reconoce y el sello se abre con el sonido de algo que llevaba mucho tiempo queriendo ser abierto.<br><br>
+Dentro: un fragmento de piedra espejo y un pergamino que dice simplemente: <em>«Si lees esto, el Maestro ya ha fallado. Bien.»</em> Sin firma. Sin fecha.`,
+    accion_entrada: () => { añadirItem('fragmento_espejo'); setF('altar_saboteado'); },
+    opciones: [
+      { texto:'Retroceder a la Cámara de los Espectros', transicion:'circulo3_camara_espectros' },
+    ]
+  },
+
+  circulo3_cripta: {
+    ubicacion: 'Cripta Inferior del Tercer Círculo',
+    texto: `La puerta baja lleva a una cripta que no figura en ningún plano del castillo. Las paredes están cubiertas de nombres: todos Arcontes del Credo grabados con distinto grado de urgencia. Algunos con una sola letra. Uno con el nombre tachado siete veces.<br><br>
+En el centro, bajo una losa desplazada por el tiempo, hay una caja de madera negra. Dentro: una poción de color imposible —entre el ámbar y algo que no tiene nombre en el espectro visible—, y una nota que dice: <em>«Para el Arconte de la Doble Esfera. Llegarás tarde, pero llegarás.»</em>`,
+    accion_entrada: () => { añadirItem('pocion_medula'); setF('cripta_explorada'); },
+    opciones: [
+      { texto:'Retroceder a la Cámara de los Espectros', transicion:'circulo3_camara_espectros' },
+    ]
+  },
+
+  // ── CÍRCULO IV ───────────────────────────────────────
+  circulo4_antesala: {
+    ubicacion: 'Antesala del Cuarto Círculo',
+    texto: `El Cuarto Círculo no recibe. <em>Contiene</em>.<br><br>
+La antesala es una cámara octogonal donde el Credo colocó sus últimas advertencias antes de que el dominio del Heraldo comenzara. Las ocho paredes tienen grabado el mismo símbolo en ocho tamaños decrecientes: una llama partida en dos, mitad dorada, mitad violeta. La misma dualidad que cargas.<br><br>
+A tu izquierda, una puerta de plata negra vibra a una frecuencia que los dientes detectan antes que los oídos: la <strong>Sala de los Espejos</strong>. Al frente, al fondo de un corredor en sombras, los pasos del <strong>Heraldo Corrompido</strong> resuenan como campanadas invertidas.`,
+    textoSeraphine: `<em>«El Heraldo era hermoso»</em>, dice Seraphine sin emoción aparente. <em>«Eso fue lo primero que Malakor tomó de él. La capacidad de ser hermoso sin saberlo. Todo lo que le queda ahora es la forma y la función. Ninguna de las dos le pertenece.»</em>`,
+    opciones: [
+      { texto:'🪞 Entrar a la Sala de los Espejos', transicion:'circulo4_sala_espejos' },
+      { texto:'⚔ Enfrentarse directamente al Heraldo', transicion:'circulo4_heraldo_directo' },
+    ]
+  },
+
+  circulo4_sala_espejos: {
+    ubicacion: 'Sala de los Espejos — Puzle',
+    texto: `La sala es imposible por sus proporciones: debería tener diez metros, pero parece tener novecientos. Tres espejos de piedra especular se alzan frente a ti, cada uno enmarcado en un metal diferente: oro, plata negra y algo que cambia según el ángulo.<br><br>
+Cada espejo muestra un reflejo que no es tuyo exactamente. El primero muestra a Alaric con la esfera de Solis activa. El segundo, con la de Nox. El tercero... el tercero muestra algo que podría ser tú pero que ha elegido con más claridad de la que tú has elegido nunca.<br><br>
+<em>La sala espera que actives los espejos en el orden correcto. Equivocarte tiene consecuencias.</em>`,
+    textoSeraphine: `<em>«La secuencia depende de quién eres ahora, no de quién fuiste»</em>, susurra Seraphine. <em>«Solis, luego Nox, luego Solis de nuevo. La dualidad siempre termina con la luz porque la oscuridad es un estado de tránsito, no un destino. Salvo que hayas elegido de otra manera.»</em>`,
+    accion_entrada: () => { estado.espejosActivados=[]; estado.espejosIntentos=0; },
+    opciones: [
+      { texto:'✦ Activar los espejos', accion:'abrirPuzzleEspejos' },
+      { texto:'Retroceder a la Antesala', transicion:'circulo4_antesala' },
+    ]
+  },
+
+  circulo4_espejo_resuelto: {
+    ubicacion: 'Sala de los Espejos — Apertura',
+    texto: `El tercer espejo se activa y los tres pulsan al unísono. El reflejo que no era exactamente tú asiente —no con la cabeza sino con una calidad de la luz que lo compone— y los tres marcos se deslizan hacia los lados con el sonido de agua corriendo al revés.<br><br>
+El paso que revelan no es una puerta. Es una ausencia en la pared perfectamente ajustada a tu silueta. Como si el castillo hubiera sabido siempre que vendrías.<br><br>
+El nivel de alerta desciende. Los espejos correctamente activados han confundido a las Almas Guardia del corredor siguiente.`,
+    accion_entrada: () => { estado.alerta=Math.max(0,estado.alerta-1); setF('espejos_resueltos'); añadirItem('fragmento_espejo'); actualizarAlertas(); },
+    opciones: [
+      { texto:'Cruzar hacia el Heraldo', transicion:'encuentro_heraldo' },
+    ]
+  },
+
+  circulo4_espejo_trampa: {
+    ubicacion: 'Sala de los Espejos — Alarma',
+    texto: `El orden incorrecto hace que los tres espejos emitan simultáneamente un pulso de luz ciega. Cuando la visión regresa, un <strong>Guardián del Espejo</strong> —una forma con demasiados ángulos para ser natural— ha materializado entre los marcos y tú.<br><br>
+No negocia. Es la consecuencia física del error.`,
+    combate:true, enemigo:'guardian_espejo', opciones:[],
+    transicion_victoria:'circulo4_sala_espejos', transicion_derrota:'circulo4_antesala',
+  },
+
+  circulo4_heraldo_directo: {
+    ubicacion: 'Corredor del Heraldo',
+    texto: `Eliges el camino directo. El corredor es estrecho y huele a cobre quemado. Cada diez pasos, el suelo tiene una marca que ya no brilla: antiguas trampas desactivadas por el tiempo o por la desidia del castillo.<br><br>
+Al final del corredor, en una cámara circular donde el techo ha desaparecido para revelar un cielo de piedra negra, el <strong>Heraldo Corrompido</strong> te espera.<br><br>
+No habla. Pero algo en su postura dice que te ha estado esperando. No a ti específicamente. A cualquiera que llegara con voluntad suficiente para llegar.<br><br>
+<em>Cambia de fase cada dos turnos. Ataca siempre con la esfera opuesta a la suya para hacer daño real.</em>`,
+    combate:true, enemigo:'heraldo_corrompido', opciones:[],
+    transicion_victoria:'heraldo_derrotado', transicion_derrota:'circulo4_antesala',
+  },
+
+  encuentro_heraldo: {
+    ubicacion: 'Cámara del Heraldo Corrompido',
+    texto: `El Heraldo Corrompido llena la cámara circular con su presencia. No por su tamaño —es apenas más alto que un humano— sino por la calidad de lo que irradia: una alternancia constante entre calor de ascua y frío de tumba que hace que el aire a su alrededor nunca termine de decidir qué temperatura tener.<br><br>
+Sus ojos, donde debería haber iris, tienen dos esferas: una de luz y otra de oscuridad. Girando. Incapaces de detenerse en ninguna de las dos sin el consenso de la otra.<br><br>
+<em>Eso, comprendes, es lo que le hicieron. Lo atraparon en la mitad. Y lo dejaron ahí.</em><br><br>
+Cambia de fase cada dos turnos. Ataca con la esfera contraria a la suya.`,
+    combate:true, enemigo:'heraldo_corrompido', opciones:[],
+    transicion_victoria:'heraldo_derrotado', transicion_derrota:'circulo4_antesala',
+  },
+
+  heraldo_derrotado: {
+    ubicacion: 'Cámara del Heraldo — Silencio',
+    texto: `El Heraldo Corrompido no cae. Se <em>deshace</em>. La alternancia entre Solis y Nox se acelera hasta volverse un parpadeo, luego un zumbido, luego nada. Lo que queda en el suelo es el amuleto que llevaba: dos medias lúnulas, una dorada y otra violeta, soldadas en el punto donde debían estar separadas.<br><br>
+El castillo exhala. No metafóricamente —el aire en la cámara se mueve hacia afuera durante tres segundos, como si el edificio acabara de soltar algo que llevaba retenido mucho tiempo.`,
+    accion_entrada: () => { añadirItem('amuleto_heraldo'); setF('heraldo_derrotado'); },
+    opciones: [
+      { texto:'Avanzar hacia el Quinto Círculo', transicion:'circulo5_camara_maestra', requiereFlag:'traidor_revelado' },
+      { texto:'Ascender a la Antecámara del Abismo', transicion:'antecamara_umbral' },
+      { texto:'Examinar la cámara antes de avanzar', transicion:'heraldo_camara_examinada' },
+    ]
+  },
+
+  heraldo_camara_examinada: {
+    ubicacion: 'Cámara del Heraldo — Examinada',
+    texto: `La cámara circular tiene siete nichos en las paredes, cada uno con un nombre grabado. Los reconoces como Arcontes del Credo que desaparecieron antes del incidente que convirtió al Heraldo en lo que era. No están muertos —no exactamente—. Están en algún lugar entre la memoria del castillo y el olvido del mundo.<br><br>
+En el séptimo nicho, hay algo que no es un nombre. Es una coordenada. Una instrucción en el idioma que los primeros Arcontes usaban antes de que el Credo estandarizara todo.<br><br>
+La traducción aproximada: <em>«La Antecámara escucha si le hablas. El error es creer que lo que responde eres tú.»</em>`,
+    accion_entrada: () => setF('advertencia_antecamara_leida'),
+    opciones: [
+      { texto:'Buscar al Maestro del Credo', transicion:'circulo5_camara_maestra', requiereFlag:'traidor_revelado' },
+      { texto:'Ascender a la Antecámara del Abismo', transicion:'antecamara_umbral' },
+    ]
+  },
+
+  // ── CÍRCULO V — MAESTRO (OPCIONAL) ──────────────────
+  circulo5_camara_maestra: {
+    ubicacion: 'Quinto Círculo — Cámara del Maestro',
+    texto: `La cámara que el Maestro del Credo —<strong>Malakor</strong>, el cuerpo robado, el traidor de veinte años— usa como centro de operaciones no parece un lugar de poder. Parece un despacho. Libros, mapas, una silla desgastada. La teatralidad de lo mundano como camuflaje de lo terrible.<br><br>
+Él está aquí. Lo sabes antes de verlo porque el aire huele distinto: al olor de alguien que lleva demasiado tiempo fingiendo ser otro. Un olor que no tiene nombre en los idiomas del mundo de arriba pero que aquí abajo se llama simplemente <em>impostura</em>.<br><br>
+El Maestro levanta la vista de sus papeles. No parece sorprendido. <em>«Sabía que llegarías hasta aquí»</em>, dice. <em>«No tengo claro si eso me alegra o me preocupa.»</em>`,
+    accion_entrada: () => setF('maestro_encontrado'),
+    opciones: [
+      { texto:'"Sé quién eres. Sé lo que hiciste."', transicion:'confrontacion_maestro_dialogo' },
+      { texto:'⚔ Atacar sin palabras', transicion:'maestro_combate' },
+    ]
+  },
+
+  confrontacion_maestro_dialogo: {
+    ubicacion: 'Confrontación — Palabras',
+    texto: `El Maestro —Malakor— deja los papeles sobre la mesa con un cuidado que es en sí mismo una forma de violencia lenta. <em>«Sí»</em>, dice. <em>«Y tú sabes lo que eso significa: que llevas desde el Prólogo buscando este momento y yo llevo veinte años esperándolo. La diferencia es que yo soy paciente y tú eres urgente.»</em><br><br>
+Una pausa. <em>«Puedo darte lo que necesitas para llegar a la Antecámara. El Credo me lo ha dado todo —el acceso, el mapa completo, el nombre que abre el umbral— y no me queda ningún lugar adonde llevarlo. Solo me queda el trato.»</em><br><br>
+<em>«¿Qué prefieres? ¿Lo que yo sé, o lo que sientes que mereces?»</em>`,
+    opciones: [
+      { texto:'🌑 Aceptar el trato (absorber su conocimiento — Nox)', transicion:'maestro_pacto_nox', requiereEsfera:'caos' },
+      { texto:'☀ Rechazar el trato y purificarlo (Solis)', transicion:'maestro_combate', requiereEsfera:'solis' },
+      { texto:'⚔ Rechazar y atacar (cualquier esfera)', transicion:'maestro_combate' },
+    ]
+  },
+
+  maestro_combate: {
+    ubicacion: 'Confrontación — Combate',
+    texto: `El Maestro del Credo no pelea con el cuerpo que porta: pelea con la arquitectura del castillo, invocando fracturas en el suelo y paredes que se cierran. Pero un cuerpo sigue siendo un cuerpo, y tú llevas todo el Acto II aprendiendo a herir lo que el castillo protege.`,
+    combate:true, enemigo:'maestro_credo', opciones:[],
+    transicion_victoria:'maestro_derrotado', transicion_derrota:'circulo5_camara_maestra',
+  },
+
+  maestro_derrotado: {
+    ubicacion: 'Confrontación — El Maestro Caído',
+    texto: `El cuerpo del Maestro cae y Malakor sale de él como agua de un cuenco roto: una presencia sin forma que no sabe adónde ir porque ha vivido en la forma de otro durante tanto tiempo que ha olvidado tener la suya propia.<br><br>
+El cuerpo original —el hombre que fue el Maestro del Credo antes de ser tomado, hace veinte años— abre los ojos durante exactamente tres segundos. Tiempo suficiente para decir una sola palabra antes de que ambos, el cuerpo y el espíritu que lo habitó, se disuelvan en la piedra del castillo.<br><br>
+La palabra es: <em>«Gracias.»</em><br><br>
+En el suelo queda la <strong>Clave del Maestro</strong>.`,
+    accion_entrada: () => { añadirItem('clave_maestra'); setF('maestro_derrotado_combate'); },
+    opciones: [
+      { texto:'Ascender a la Antecámara del Abismo', transicion:'antecamara_umbral' },
+    ]
+  },
+
+  maestro_pacto_nox: {
+    ubicacion: 'Confrontación — El Trato',
+    texto: `Extiendes la esfera de Nox y el Maestro vierte en ella todo lo que sabe: el mapa completo de los Siete Círculos, el nombre verdadero de la Antecámara, el glifo de apertura que el Credo le entregó para emergencias y que nunca llegó a usar por emergencia real.<br><br>
+Es un intercambio honesto, lo que es la forma más peligrosa de intercambio.<br><br>
+Cuando termina, el Maestro —Malakor— es solo un hombre mayor sentado en una silla desgastada. <em>«Ya no soy necesario aquí»</em>, dice. <em>«Tampoco seré necesario en ningún otro lugar. Eso, extrañamente, es lo más parecido a la paz que he sentido en siglos.»</em><br><br>
+Se queda ahí sentado cuando sales. Ni tú ni él sabéis si eso es liberación o condena.`,
+    accion_entrada: () => { añadirItem('clave_maestra'); setF('maestro_pacto_completado'); estado.hpMax += 10; },
+    opciones: [
+      { texto:'Ascender a la Antecámara del Abismo', transicion:'antecamara_umbral' },
+    ]
+  },
+
+  // ── ANTECÁMARA DEL ABISMO ────────────────────────────
+  antecamara_umbral: {
+    ubicacion: 'Antecámara del Abismo — Umbral',
+    texto: `El umbral de la Antecámara del Abismo no está en el Quinto Círculo. No está en el Sexto. Está donde decides que está, y el castillo, por primera vez desde que entraste, parece estar de acuerdo con tus decisiones en vez de evaluarlas.<br><br>
+La puerta no tiene cerradura. Tiene una pregunta grabada en un idioma que no es ninguno de los que conoces pero que entiendes perfectamente:<br><br>
+<em>¿Llegas con una voluntad o con dos?</em><br><br>
+Detrás de esta puerta, la Antecámara no obedece las reglas del plano físico. El color no se comporta. El tiempo es consultivo. Y algo que lleva mucho tiempo esperando en la oscuridad sabe que has llegado.`,
+    textoSeraphine: `Seraphine se detiene antes del umbral. <em>«No puedo seguirte»</em>, dice. No con miedo. Con algo más parecido al reconocimiento. <em>«La Antecámara existe en el espacio entre tu nombre y el otro nombre. Ahí solo cabes tú.»</em> Una pausa muy larga. <em>«Vuelve. Eso es todo lo que te pido.»</em>`,
+    accion_entrada: () => {
+      document.body.classList.add('modo-abismo');
+      document.body.classList.remove('modo-caos');
+      document.getElementById('companion-panel').classList.remove('visible');
+    },
+    opciones: [
+      { texto:'Entrar a la Antecámara', transicion:'antecamara_interior' },
+    ]
+  },
+
+  antecamara_interior: {
+    ubicacion: '— Antecámara del Abismo —',
+    texto: `Dentro no hay geometría fiable. El suelo existe donde lo necesitas. El techo aparece si buscas el techo. Las paredes son negras de una manera que va más allá del color: son la ausencia estructural de toda alternativa.<br><br>
+La <strong>esfera de Solis</strong> no brilla aquí. La <strong>esfera de Nox</strong> tampoco. Lo que tienes en la mano —lo que siempre has tenido— es ambas a la vez, y por primera vez desde que entraste al castillo eso no se siente como una contradicción. Se siente como la única configuración honesta.<br><br>
+Algo en el centro de la cámara pulsa. No con luz. Con <em>reconocimiento</em>.`,
+    opciones: [
+      { texto:'Acercarse al centro de la cámara', transicion:'antecamara_voz' },
+      { texto:'Examinar las paredes en busca de inscripciones', transicion:'antecamara_inscripciones' },
+    ]
+  },
+
+  antecamara_inscripciones: {
+    ubicacion: 'Antecámara — Paredes',
+    texto: `Las paredes no tienen inscripciones. Tienen <em>intenciones</em>. Cada centímetro de superficie negra porta el registro de las decisiones que tomaron los Arcontes anteriores a ti: no los textos de esas decisiones, sino el <em>peso</em> que tuvieron. Algunos pesaban mucho. Otros casi nada.<br><br>
+Encuentras el registro de Seraphine —tres siglos de peso comprimidos en una huella de palma que la piedra todavía recuerda— y el de alguien cuyo registro no reconoces. Alguien que tomó una sola decisión y esa decisión pesó más que todas las demás juntas.<br><br>
+El nombre bajo esa huella está borrado. Pero la forma de la mano es la misma que la tuya.`,
+    accion_entrada: () => setF('huellas_antecamara_vistas'),
+    opciones: [
+      { texto:'Acercarse al centro de la cámara', transicion:'antecamara_voz' },
+    ]
+  },
+
+  antecamara_voz: {
+    ubicacion: 'Antecámara — El Centro',
+    texto: `Lo que pulsa en el centro no tiene forma. Tiene conversación. Te habla con tu propia voz —la voz de Alaric— pero con una inflexión que es tuya y no lo es: la inflexión de alguien que lleva más tiempo en la oscuridad del que la oscuridad merece.<br><br>
+<em>«Llevas desde el Prólogo preguntando qué eres»</em>, dice la voz. <em>«Un Arconte. Un sucesor. Un instrumento del Credo. Ninguna de esas respuestas te satisfizo porque todas eran descripciones de lo que otros querían que fueses. La pregunta que no has hecho es la única que importa.»</em><br><br>
+Una pausa.<br><br>
+<em>«¿Qué quieres <strong>tú</strong>?»</em>`,
+    opciones: [
+      { texto:'"Quiero sellar el Abismo. Proteger lo que queda."', transicion:'antecamara_respuesta_sello' },
+      { texto:'"Quiero abrirlo. Entender lo que hay al otro lado."', transicion:'antecamara_respuesta_apertura' },
+      { texto:'"Quiero las dos cosas. Y sé que eso no es una respuesta."', transicion:'antecamara_respuesta_dual' },
+    ]
+  },
+
+  antecamara_respuesta_sello: {
+    ubicacion: 'Antecámara — Elección del Sello',
+    texto: `La voz guarda silencio durante un tiempo que no tiene duración medible. Luego: <em>«Eso es una respuesta limpia. Respetable. El tipo de respuesta que el Credo enseñó a dar.»</em><br><br>
+Una pausa. <em>«¿Es tuya?»</em><br><br>
+No respondes. Pero algo en la postura con que la sostienes —firme, clara, sin el temblor de quien miente— convence a la cámara de que sí lo es. El centro de la Antecámara emite una luz que no es Solis ni Nox sino algo anterior a ambas, y la puerta al Abismo se abre hacia adentro, no hacia afuera.`,
+    accion_entrada: () => setF('eleccion_sello'),
+    opciones: [
+      { texto:'✦ Sellar el Abismo', transicion:'final_acto2_sello' },
+    ]
+  },
+
+  antecamara_respuesta_apertura: {
+    ubicacion: 'Antecámara — Elección de la Apertura',
+    texto: `La voz no reacciona con alarma. Con algo más parecido a la satisfacción de quien ha esperado mucho tiempo una honestidad específica. <em>«Entonces abre los ojos»</em>, dice. <em>«Lo que hay al otro lado no es más oscuro que lo que ya has visto. Es más real. Y la realidad sin filtro es lo que todos los castillos —todos los credos, todos los umbrales— han estado protegiéndote de ver.»</em><br><br>
+La puerta al Abismo se abre hacia fuera, como si el otro lado la hubiera estado empujando desde siempre.`,
+    accion_entrada: () => setF('eleccion_apertura'),
+    opciones: [
+      { texto:'✦ Cruzar hacia el Abismo', transicion:'final_acto2_abismo' },
+    ]
+  },
+
+  antecamara_respuesta_dual: {
+    ubicacion: 'Antecámara — La Respuesta Dual',
+    texto: `La voz calla. Luego hace algo que no esperabas: <em>ríe</em>. No con crueldad. Con el reconocimiento de alguien que finalmente oye la respuesta honesta después de siglos de respuestas convenientes.<br><br>
+<em>«Sí»</em>, dice. <em>«Exactamente. Eso no es una respuesta; es la condición. La Antecámara no fue construida para los que saben qué quieren. Fue construida para los que saben que quieren dos cosas incompatibles y tienen que elegir de todos modos.»</em><br><br>
+La cámara se ilumina con ambas esferas simultáneamente. Solis y Nox, cálido y frío, sin cancelarse. Solo un momento. Luego te pide que elijas.`,
+    opciones: [
+      { texto:'Sellar el Abismo', transicion:'final_acto2_sello' },
+      { texto:'Abrirlo', transicion:'final_acto2_abismo' },
+    ]
+  },
+
+  // ── FINALES ACTO II ──────────────────────────────────
+  final_acto2_sello: {
+    ubicacion: '✦ Final del Acto II — La Memoria del Alba',
+    texto: `El sello del Abismo requiere tres cosas: el nombre del que sella, la esfera activa, y la voluntad sin fisura. Tienes las tres.<br><br>
+Cuando el sello se cierra, el castillo <em>recuerda</em>. No tú: el castillo. Como si la piedra recuperara algo que había olvidado ser antes de que Malakor empezara a vaciarlo. Las marcas del Credo en las paredes del Tercer Círculo vuelven a brillar. Los espectros de la Cámara cesan su bucle y se disuelven, por fin, en algo que el castillo traducirá eventualmente como descanso.<br><br>
+Seraphine aparece en el umbral de la Antecámara —que ya no es la Antecámara, que ya es solo una sala— con su ojo bicolor parpadeando al ritmo de algo que no es exactamente alegría pero que se le parece más que cualquier otra cosa que hayas visto en este castillo.<br><br>
+<em>«El Sexto Círculo —dice—. Y el Séptimo. Todavía hay trabajo.»</em><br><br>
+Sí. Todavía hay trabajo.<br><br>
+<strong>— Fin del Acto II —</strong>`,
+    accion_entrada: () => { setF('final_sello_acto2'); estado.actoCompletado=true; guardarPartida(); document.body.classList.remove('modo-abismo'); },
+    opciones: [
+      { texto:'✦ Continuar — Acto III', accion:'mostrarFinActo' }
+    ]
+  },
+
+  final_acto2_abismo: {
+    ubicacion: '✦ Final del Acto II — La Identidad del Abismo',
+    texto: `Al cruzar, lo que encuentras no es el caos que el Credo prometió que habría. Es un espacio donde todo lo que ha sido negado —todo lo que los Arcontes sellaron y escondieron y llamaron peligroso para no tener que responder sus preguntas— existe en su forma sin editar.<br><br>
+No te destruye. Te examina. Y tú lo examinas de vuelta. Este es, descubres, el único intercambio honesto que ha ocurrido en este castillo en siglos.<br><br>
+Cuando regresas —porque regresas, porque siempre regresabas— el castillo es el mismo pero tú no eres exactamente el mismo que entró. Seraphine lo ve de inmediato en los ojos. No dice nada. Pero su mano encuentra tu muñeca por un momento, y ese contacto dice lo suficiente.<br><br>
+<em>El Sexto Círculo y el Séptimo esperan. Y ahora sabes que lo que encontrarás allí no te asustará de la misma manera que te asustó todo lo demás.</em><br><br>
+<strong>— Fin del Acto II —</strong>`,
+    accion_entrada: () => { setF('final_apertura_acto2'); estado.actoCompletado=true; guardarPartida(); document.body.classList.remove('modo-abismo'); },
+    opciones: [
+      { texto:'✦ Continuar — Acto III', accion:'mostrarFinActo' }
+    ]
+  },
+
+}; // fin historiaActo2
+
+// ═══════════════════════════════════════════════════════
+// HISTORIA UNIFICADA
+// ═══════════════════════════════════════════════════════
+const historia = { ...historiaActo1, ...historiaActo2 };
+
+// ═══════════════════════════════════════════════════════
+// ACCIONES (Acto I + Acto II fusionadas)
+// ═══════════════════════════════════════════════════════
+const acciones = {
+
+  // ── ACTO I — Portal ──
+  quebrar_cadena_luz()   { mostrarToast('☀ Solis disuelve el hierro en luz dorada'); },
+  quebrar_cadena_caos()  { mostrarToast('☠ Nox convierte el metal en ceniza violácea'); },
+  recoger_medalla()      { añadirItem('medalla_valerius'); setF('medalla_recogida'); },
+
+  // ── ACTO I — Gran Salón ──
+  purificar_alma() {
+    mostrarToast('☀ Solis purifica un Alma Atrapada');
+    estado.flagsNarrativa.almas_purificadas = (estado.flagsNarrativa.almas_purificadas || 0) + 1;
+  },
+  absorber_alma() {
+    mostrarToast('☠ Nox absorbe la esencia del condenado');
+    estado.flagsNarrativa.almas_absorbidas = (estado.flagsNarrativa.almas_absorbidas || 0) + 1;
+    estado.hpMax = Math.min(estado.hpMax + 5, 150);
+  },
+  purificar_todas() {
+    mostrarToast('☀ Tres almas ascienden hacia la luz');
+    setF('salon_purificado');
+  },
+  ganar_fragmento_nox() {
+    setF('fragmento_nox'); estado.hpMax = Math.min(estado.hpMax + 10, 150);
+    mostrarToast('☠ Fragmento de Nox integrado (+10 HP máx)');
+  },
+  recoger_mapa_espectral() { if(!tieneItem('mapa_espectral')) añadirItem('mapa_espectral'); },
+  descubrir_cripta() { setF('cripta_descubierta'); mostrarToast('Se escucha algo moverse detrás del mármol...'); },
+
+  // ── ACTO I — Archivos ──
+  leer_diario() { setF('diario_leido'); mostrarToast('✦ La verdad sobre Valerius revelada'); },
+  interrogar_sombra()    { mostrarToast('☠ Nox percibe la presencia del eco'); },
+  absorber_eco()  { setF('eco_absorbido'); setF('conoce_siete_circulos'); mostrarToast('☠ Eco absorbido — conocimiento del castillo ganado'); },
+  ganar_conocimiento_castillo() { setF('conoce_siete_circulos'); },
+  encontrar_llave() { /* acción delegada a accion_entrada de sala_archivos_llave */ },
+  recoger_llave_mazmorra() { if(!tieneItem('llave_mazmorra')) añadirItem('llave_mazmorra'); },
+  revelar_identidad_valerius() { setF('traidor_revelado'); setF('identidad_valerius_revelada'); },
+
+  // ── ACTO I — Pasillo Lateral ──
+  leer_simbolo() { setF('mensaje_credo_leido'); mostrarToast('☀ Solis revela el mensaje oculto del Credo'); },
+
+  // ── ACTO I — Corredor Superior ──
+  reactivar_reloj()       { setF('reloj_reactivado'); mostrarToast('☀ El tiempo fluye de nuevo en el corredor'); },
+  extraer_nucleo()        { setF('nucleo_extraido_nox'); mostrarToast('☠ Núcleo absorbido por Nox — el reloj colapsa'); },
+  examinar_corredor()     { mostrarToast('✦ Trampas detectadas mediante el Credo'); },
+  desactivar_trampas()    { setF('trampas_desactivadas'); mostrarToast('✦ Cuatro trampas de aguja desactivadas'); },
+  investigar_baldosa_credo() { mostrarToast('✦ Sello del Credo detectado en el suelo'); },
+  recoger_nucleo_solis()  { if(!tieneItem('nucleo_reloj')) añadirItem('nucleo_reloj'); },
+  recoger_nucleo_nox()    { if(!tieneItem('nucleo_reloj')) añadirItem('nucleo_reloj'); setF('nucleo_nox'); },
+  recoger_sello_tercer_circulo() { if(!tieneItem('sello_tercer_circulo')) añadirItem('sello_tercer_circulo'); },
+  recoger_pocion_medula() { if(!tieneItem('pocion_medula')) añadirItem('pocion_medula'); },
+
+  // ── ACTO I — Seraphine ──
+  romper_runas_supresion() { setF('seraphine_liberada'); mostrarToast('☀ Las runas de supresión se quiebran'); },
+  liberar_seraphine()  { setF('seraphine_liberada'); },
+  despertar_alaric()   { setF('alaric_despertado'); mostrarToast('☀ Alaric comienza a despertar'); },
+  consultar_nox()      { setF('nox_consultado'); mostrarToast('☠ Nox juzga: la verdad resuena'); },
+  recordar_nombre_luz()  { setF('nombre_recordado'); },
+  recordar_nombre_caos() { setF('nombre_recordado_nox'); },
+
+  // ── ACTO I — Finales ──
+  completar_acto1_camino_luz()  { estado.actoCompletado=true; setF('final_luz'); guardarPartida(); },
+  completar_acto1_camino_caos() { estado.actoCompletado=true; setF('final_caos'); guardarPartida(); },
+
+  // ── TRANSICIÓN DE ACTO ──
+  inicio_acto2() {
+    // Transición fluida al Acto II dentro del mismo archivo
+    estado.actoActual = 2;
+    estado.nodoActual = 'acto2_inicio';
+    estado.alerta = 0;
+    estado.espejosActivados = [];
+    estado.actoCompletado = false;
+    guardarPartida();
+    const flagsSaved = { ...estado.flagsNarrativa };
+    mostrarChapterScreen(() => {
+      estado.flagsNarrativa = flagsSaved;
+      navegar('acto2_inicio');
+    });
+  },
+
+  // ── ACTO II ──
+  abrirPuzzleEspejos() { abrirPuzzleEspejos(); },
+  mostrarFinActo() {
+    mostrarToast('✦ El Acto III está en desarrollo');
+    setTimeout(() => mostrarToast('Partida guardada. Hasta pronto, Arconte.'), 2200);
+  },
+};
+
+// ═══════════════════════════════════════════════════════
+// MIRROR PUZZLE
+// ═══════════════════════════════════════════════════════
+function getSecuenciaCorrecta() {
+  return f('almas_absorbidas') ? ['B','A','B'] : ['A','B','A'];
+}
+
+function abrirPuzzleEspejos() {
+  estado.espejosActivados = [];
+  estado.espejosIntentos = 0;
+  renderMirrorProgress();
+  ['A','B','C'].forEach(id => {
+    document.getElementById('mirror-'+id).classList.remove('activado-solis','activado-nox','error');
+  });
+  document.getElementById('mirror-overlay').classList.add('visible');
+}
+
+function cerrarPuzzleEspejos() {
+  document.getElementById('mirror-overlay').classList.remove('visible');
+}
+
+function activarEspejo(id) {
+  const seq = getSecuenciaCorrecta();
+  const idx = estado.espejosActivados.length;
+  if(idx >= 3) return;
+  const el = document.getElementById('mirror-'+id);
+  estado.espejosActivados.push(id);
+  const esSolis = (id === 'A') || (id === 'C' && !f('almas_absorbidas'));
+  el.classList.add(esSolis ? 'activado-solis' : 'activado-nox');
+  renderMirrorProgress();
+  if(id !== seq[idx]) {
+    estado.espejosIntentos++;
+    el.classList.add('error');
+    setTimeout(() => {
+      estado.espejosActivados = [];
+      ['A','B','C'].forEach(i => document.getElementById('mirror-'+i).classList.remove('activado-solis','activado-nox','error'));
+      renderMirrorProgress();
+    }, 800);
+    if(estado.espejosIntentos >= 2) {
+      setTimeout(() => { cerrarPuzzleEspejos(); navegar('circulo4_espejo_trampa'); }, 1000);
+    }
+    return;
+  }
+  if(estado.espejosActivados.length === 3) {
+    setTimeout(() => { cerrarPuzzleEspejos(); navegar('circulo4_espejo_resuelto'); }, 800);
+  }
+}
+
+function renderMirrorProgress() {
+  for(let i=0; i<3; i++) {
+    const el = document.getElementById('ms'+(i+1));
+    el.className = 'mirror-step';
+    if(i < estado.espejosActivados.length) {
+      const seq = getSecuenciaCorrecta();
+      el.classList.add(seq[i] === estado.espejosActivados[i] ? 'solis' : 'nox');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// STEALTH
+// ═══════════════════════════════════════════════════════
+function actualizarAlertas() {
+  ['dot1','dot2','dot3'].forEach((id, i) => {
+    document.getElementById(id).classList.toggle('activo', i < estado.alerta);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// INVENTARIO
+// ═══════════════════════════════════════════════════════
+function añadirItem(id) {
+  if(tieneItem(id)) return;
+  estado.inventario.push(id);
+  renderInventario();
+  const item = ITEMS[id];
+  if(item) mostrarToast('✦ '+item.icono+' '+item.nombre);
+  guardarPartida();
+}
+
+function renderInventario() {
+  const bar = document.getElementById('inventario-bar');
+  bar.innerHTML = '<div id="inventario-label">✦ ÍTEMS</div>';
+  if(estado.inventario.length === 0) {
+    const em = document.createElement('span');
+    em.style.cssText = 'font-family:var(--font-body);font-style:italic;font-size:.7rem;color:var(--text-dim);';
+    em.textContent = 'Vacío';
+    bar.appendChild(em);
+    return;
+  }
+  estado.inventario.forEach(id => {
+    const item = ITEMS[id];
+    if(!item) return;
+    const chip = document.createElement('div');
+    chip.className = 'item-chip';
+    chip.textContent = item.icono+' '+item.nombre;
+    chip.title = item.descripcion;
+    bar.appendChild(chip);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// COMBATE
+// ═══════════════════════════════════════════════════════
+function iniciarCombate(nodo) {
+  const base = ENEMIGOS[nodo.enemigo];
+  if(!base) return;
+  estado.combate = JSON.parse(JSON.stringify(base));
+  estado.combate.id = nodo.enemigo;
+  document.getElementById('combat-hud').classList.add('activo');
+  actualizarHUD();
+  renderCombatAcciones();
+}
+
+function actualizarHUD() {
+  if(!estado.combate) return;
+  const c = estado.combate;
+  document.getElementById('player-hp-num').textContent = estado.hp+'/'+estado.hpMax;
+  document.getElementById('enemy-name').textContent = c.nombre;
+  document.getElementById('enemy-hp-num').textContent = c.hp+'/'+c.hpMax;
+  document.getElementById('player-hp-bar').style.width = Math.max(0,(estado.hp/estado.hpMax*100))+'%';
+  document.getElementById('enemy-hp-bar').style.width = Math.max(0,(c.hp/c.hpMax*100))+'%';
+  const phaseEl = document.getElementById('enemy-phase');
+  if(c.fase && c.faseTexto) {
+    phaseEl.textContent = c.faseTexto[c.fase];
+    phaseEl.className = 'fase-'+c.fase;
+    phaseEl.style.display = 'block';
+  } else {
+    phaseEl.style.display = 'none';
+  }
+}
+
+function renderCombatAcciones() {
+  const div = document.getElementById('combat-actions');
+  div.innerHTML = '';
+  const btns = [
+    { label:'⚔ Atacar (Solis)', clase:'solis-btn', accion:'atacar_solis', req:'solis' },
+    { label:'🌑 Atacar (Nox)',  clase:'caos-btn',  accion:'atacar_nox',   req:'caos'  },
+    { label:'↩ Esquivar',       clase:'',           accion:'esquivar',     req:null    },
+    { label:'⚗ Poción',         clase:'',           accion:'usar_pocion',  req:null, reqItem:'pocion_medula' },
+  ];
+  btns.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'combat-btn '+b.clase;
+    btn.textContent = b.label;
+    if(b.req && estado.esfera !== b.req) btn.disabled = true;
+    if(b.reqItem && !tieneItem(b.reqItem)) btn.disabled = true;
+    btn.onclick = () => procesarAccionCombate(b.accion);
+    div.appendChild(btn);
+  });
+}
+
+function procesarAccionCombate(tipo) {
+  if(!estado.combate) return;
+  const c = estado.combate;
+  let dmgJugador = 0, dmgEnemigo = 0, log = '';
+  c.turnos = (c.turnos||0) + 1;
+
+  // Cambio de fase para el Heraldo
+  if(c.id === 'heraldo_corrompido' && c.turnos % 2 === 0) {
+    c.fase = c.fase === 'nox' ? 'solis' : 'nox';
+  }
+
+  const faseActiva  = c.fase;
+  const esferaActual = estado.esfera;
+  const r = n => Math.floor(Math.random()*n);
+
+  let mult = 1;
+  if(faseActiva) {
+    if(esferaActual==='solis' && faseActiva==='solis') mult = 0.5;
+    if(esferaActual==='caos'  && faseActiva==='nox')   mult = 0.5;
+    if(esferaActual==='solis' && faseActiva==='nox')   mult = 1.5;
+    if(esferaActual==='caos'  && faseActiva==='solis') mult = 1.5;
+    if(f('estrategia_heraldo_conocida') && mult > 1)   mult += 0.2;
+  }
+
+  if(tipo === 'atacar_solis') {
+    dmgEnemigo = Math.round((18+r(10))*mult);
+    dmgJugador = 12+r(8);
+    log = faseActiva==='solis' ? `Solis contra Solis. ${dmgEnemigo} daño (reducido).` : `Luz contra sombra. ${dmgEnemigo} daño${mult>1?' ✦ CRÍTICO':''}.`;
+  } else if(tipo === 'atacar_nox') {
+    const base = 14+r(14);
+    dmgEnemigo = Math.round(base*mult);
+    const drain = Math.floor(base*0.3);
+    estado.hp = Math.min(estado.hpMax, estado.hp+drain);
+    dmgJugador = 10+r(8);
+    log = `Nox drena ${drain} HP. ${dmgEnemigo} daño${mult>1?' ✦ CRÍTICO':''}.`;
+  } else if(tipo === 'esquivar') {
+    if(Math.random() < 0.55) { dmgJugador=0; log='Esquivas. El golpe roza el aire.'; }
+    else { dmgJugador=12+r(8); log=`Fallas la esquiva. ${dmgJugador} de daño recibido.`; }
+  } else if(tipo === 'usar_pocion') {
+    const idx = estado.inventario.indexOf('pocion_medula');
+    if(idx > -1) {
+      estado.inventario.splice(idx,1);
+      estado.hp = Math.min(estado.hpMax, estado.hp+40);
+      renderInventario();
+      log = 'Poción de Médula. +40 HP.';
+    }
+  }
+
+  c.hp = Math.max(0, c.hp - dmgEnemigo);
+  estado.hp = Math.max(0, estado.hp - dmgJugador);
+  document.getElementById('combat-log').textContent = log;
+  actualizarHUD();
+  renderCombatAcciones();
+
+  if(c.hp <= 0)       setTimeout(() => terminarCombate(true),  1200);
+  else if(estado.hp <= 0) { estado.hp = Math.ceil(estado.hpMax*0.3); setTimeout(() => terminarCombate(false), 1500); }
+
+  guardarPartida();
+}
+
+function terminarCombate(victoria) {
+  const nodo = historia[estado.nodoActual];
+  document.getElementById('combat-hud').classList.remove('activo');
+  estado.combate = null;
+  const dest = victoria ? nodo.transicion_victoria : nodo.transicion_derrota;
+  mostrarToast(victoria ? '✦ Victoria' : 'Derrotado. Retrocediendo...');
+  setTimeout(() => navegar(dest || (estado.actoActual===1 ? 'gran_salon' : 'acto2_inicio')), 400);
+}
+
+// ═══════════════════════════════════════════════════════
+// MOTOR DE RENDERIZADO
+// ═══════════════════════════════════════════════════════
+const NUMS = ['①','②','③','④','⑤','⑥'];
+
+function renderNodo(id) {
+  const nodo = historia[id];
+  if(!nodo) { mostrarToast('Nodo no encontrado: '+id); return; }
+  estado.nodoActual = id;
+
+  // Ubicación
+  document.getElementById('location-text').textContent = nodo.ubicacion || '—';
+
+  // Texto
+  const texto = typeof nodo.texto === 'function' ? nodo.texto() : nodo.texto;
+  const ta = document.getElementById('text-area');
+  ta.innerHTML = texto;
+  ta.scrollTop = 0;
+
+  // Companion (Seraphine)
+  if(nodo.textoSeraphine && seraphinePresente()) {
+    document.getElementById('companion-text').innerHTML = nodo.textoSeraphine;
+    document.getElementById('companion-panel').classList.add('visible');
+  } else {
+    document.getElementById('companion-panel').classList.remove('visible');
+  }
+
+  // Acción de entrada (soporta tanto funciones como strings)
+  if(nodo.accion_entrada) {
+    if(typeof nodo.accion_entrada === 'function') {
+      nodo.accion_entrada();
+    } else if(acciones[nodo.accion_entrada]) {
+      acciones[nodo.accion_entrada]();
+    }
+  }
+
+  // Combate
+  if(nodo.combate && nodo.enemigo) {
+    iniciarCombate(nodo);
+    document.getElementById('options-area').innerHTML = '';
+  } else {
+    document.getElementById('combat-hud').classList.remove('activo');
+    renderOpciones(nodo.opciones || []);
+  }
+
+  // Scroll hint
+  requestAnimationFrame(() => {
+    const hint = document.getElementById('scroll-hint');
+    hint.classList.toggle('visible', ta.scrollHeight > ta.clientHeight + 20);
+    ta.onscroll = () => hint.classList.toggle('visible', ta.scrollTop < ta.scrollHeight - ta.clientHeight - 20);
+  });
+
+  guardarPartida();
+}
+
+function renderOpciones(opciones) {
+  const area = document.getElementById('options-area');
+  area.innerHTML = '';
+  const visibles = opciones.filter(op => {
+    if(op.requiereEsfera === 'solis' && estado.esfera !== 'solis') return false;
+    if(op.requiereEsfera === 'caos'  && estado.esfera !== 'caos')  return false;
+    if(op.requiereEnInventario && !tieneItem(op.requiereEnInventario)) return false;
+    if(op.requiereFlag && !f(op.requiereFlag)) return false;
+    if(op.condicion_ausencia_item && tieneItem(op.condicion_ausencia_item)) return false;
+    return true;
+  });
+
+  visibles.forEach((op, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opcion-btn';
+    if(op.requiereEsfera === 'solis') btn.classList.add('solis');
+    if(op.requiereEsfera === 'caos')  btn.classList.add('caos');
+    if(op.requiereEnInventario)       btn.classList.add('item');
+    if(op.requiereFlag)               btn.classList.add('flag');
+    btn.innerHTML = `<span class="num-badge">${NUMS[i]||'·'}</span>${op.texto}`;
+    btn.onclick = () => manejarOpcion(op);
+    area.appendChild(btn);
+  });
+
+  if(visibles.length === 0) {
+    const msg = document.createElement('p');
+    msg.style.cssText = 'font-family:var(--font-ui);font-size:.7rem;color:var(--text-dim);text-align:center;padding:10px;letter-spacing:.1em;';
+    msg.textContent = '— Sin acciones disponibles —';
+    area.appendChild(msg);
+  }
+}
+
+function manejarOpcion(op) {
+  if(op.accion && acciones[op.accion]) acciones[op.accion]();
+  if(op.transicion) navegar(op.transicion);
+  else if(!op.accion) {
+    // Solo re-renderizar opciones del nodo actual
+    renderOpciones(historia[estado.nodoActual].opciones || []);
+    guardarPartida();
+  }
+}
+
+function navegar(id) {
+  const ov = document.getElementById('transition-overlay');
+  ov.classList.add('activo');
+  setTimeout(() => {
+    renderNodo(id);
+    actualizarAlertas();
+    ov.classList.remove('activo');
+  }, 340);
+}
+
+// ═══════════════════════════════════════════════════════
+// ESFERA TOGGLE
+// ═══════════════════════════════════════════════════════
+function cambiarEsfera() {
+  estado.esfera = estado.esfera === 'solis' ? 'caos' : 'solis';
+  const esCaos = estado.esfera === 'caos';
+  document.body.classList.toggle('modo-caos', esCaos);
+  document.getElementById('esfera-label').textContent = esCaos ? 'Nox' : 'Solis';
+
+  // Flash visual
+  const ov = document.getElementById('transition-overlay');
+  ov.style.opacity = '0.2'; ov.style.transition = 'opacity 0.15s';
+  setTimeout(() => { ov.style.opacity='0'; ov.style.transition='opacity 0.34s'; }, 250);
+
+  // Re-renderizar opciones
+  const nodo = historia[estado.nodoActual];
+  if(nodo && !nodo.combate) renderOpciones(nodo.opciones || []);
+  if(estado.combate) renderCombatAcciones();
+
+  mostrarToast(esCaos ? '🌑 Nox · Fuerza del Caos activada' : '☀ Solis · Fuerza del Alba activada');
+  guardarPartida();
+}
+
+// ═══════════════════════════════════════════════════════
+// SAVE / LOAD
+// ═══════════════════════════════════════════════════════
+const SAVE_KEY_ACT1 = 'arconte_save_v1';
+const SAVE_KEY_ACT2 = 'arconte_save_v2';
+
+function getSaveKey() {
+  return estado.actoActual === 1 ? SAVE_KEY_ACT1 : SAVE_KEY_ACT2;
+}
+
+function guardarPartida() {
+  try {
+    localStorage.setItem(getSaveKey(), JSON.stringify({...estado, timestamp:Date.now()}));
+    mostrarSaveIndicator();
+  } catch(e) {}
+}
+
+function cargarPartida(acto) {
+  try {
+    const key = acto === 1 ? SAVE_KEY_ACT1 : SAVE_KEY_ACT2;
+    const raw = localStorage.getItem(key);
+    if(!raw) return false;
+    const saved = JSON.parse(raw);
+    // Normalizar esfera legacy
+    if(saved.esfera === 'luz') saved.esfera = 'solis';
+    Object.assign(estado, saved);
+    estado.actoActual = acto;
+    return true;
+  } catch(e) { return false; }
+}
+
+function hayPartidaGuardada(acto) {
+  return !!localStorage.getItem(acto===1 ? SAVE_KEY_ACT1 : SAVE_KEY_ACT2);
+}
+
+function importarFlagsActo1() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY_ACT1);
+    if(!raw) return false;
+    const save = JSON.parse(raw);
+    if(save.flagsNarrativa) estado.flagsNarrativa = {...save.flagsNarrativa};
+    if(save.inventario) estado.inventario = save.inventario.filter(id => ITEMS[id]);
+    if(save.hp)    estado.hp    = save.hp;
+    if(save.hpMax) estado.hpMax = save.hpMax;
+    if(save.esfera) estado.esfera = (save.esfera === 'luz') ? 'solis' : save.esfera;
+    return true;
+  } catch(e) { return false; }
+}
+
+// ═══════════════════════════════════════════════════════
+// UI UTILITIES
+// ═══════════════════════════════════════════════════════
+let saveTimer = null;
+function mostrarSaveIndicator() {
+  const el = document.getElementById('save-indicator');
+  el.style.opacity = '1';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { el.style.opacity='0'; }, 2000);
+}
+
+let toastTimer = null;
+function mostrarToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), 2600);
+}
+
+// ═══════════════════════════════════════════════════════
+// CHAPTER SCREEN
+// ═══════════════════════════════════════════════════════
+function mostrarChapterScreen(onContinue) {
+  const flags = estado.flagsNarrativa;
+  const partes = [];
+
+  if(estado.actoActual === 2) {
+    if(flags.seraphine_liberada)  partes.push('Seraphine te acompaña.');
+    if(flags.traidor_revelado)    partes.push('Conoces el nombre del traidor.');
+    if(flags.final_luz)           partes.push('El Acto I terminó en luz.');
+    if(flags.final_caos)          partes.push('El Acto I terminó en caos.');
+    if(flags.almas_absorbidas)    partes.push('Absorbiste almas en el Acto I.');
+    document.getElementById('chapter-act').textContent   = '✦ ACTO II ✦';
+    document.getElementById('chapter-title').textContent  = 'El Tercer Círculo y la Antecámara';
+    document.getElementById('chapter-continue').textContent = 'Descender';
+  } else {
+    document.getElementById('chapter-act').textContent   = '✦ ACTO I ✦';
+    document.getElementById('chapter-title').textContent  = 'El Castillo de Valerius';
+    document.getElementById('chapter-continue').textContent = 'Entrar';
+  }
+
+  if(partes.length === 0) partes.push(estado.actoActual === 2 ? 'El Acto I ha concluido. Desciendes.' : 'Que comience la partida.');
+  document.getElementById('chapter-summary').innerHTML = partes.map(p => `<em>${p}</em>`).join('<br>');
+  document.getElementById('chapter-screen').classList.add('visible');
+
+  document.getElementById('chapter-continue').onclick = () => {
+    document.getElementById('chapter-screen').classList.remove('visible');
+    if(onContinue) onContinue();
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// INICIO
+// ═══════════════════════════════════════════════════════
+function iniciarActo(acto, continuar) {
+  // Ocultar pantalla de inicio, mostrar app
+  document.getElementById('pantalla-inicio').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  // Resetear estado base
+  estado = {
+    actoActual: acto,
+    nodoActual: acto === 1 ? 'inicio' : 'acto2_inicio',
+    esfera: 'solis',
+    inventario: [],
+    hp: 100, hpMax: 100,
+    combate: null,
+    flagsNarrativa: {},
+    alerta: 0,
+    espejosActivados: [],
+    espejosIntentos: 0,
+    actoCompletado: false,
+  };
+
+  if(continuar) {
+    // Cargar partida guardada
+    cargarPartida(acto);
+  } else if(acto === 2) {
+    // Nueva partida del Acto II: intentar importar flags del Acto I
+    const act1Imported = importarFlagsActo1();
+    if(!act1Imported) {
+      // Defaults si no hay save del Acto I
+      estado.flagsNarrativa = { seraphine_liberada:true, traidor_revelado:true, mensaje_credo_leido:true, final_luz:true };
+      estado.inventario = ['sello_tercer_circulo', 'pocion_medula'];
+    }
+    estado.actoActual = 2;
+    estado.nodoActual = 'acto2_inicio';
+    estado.alerta = 0; estado.espejosActivados = []; estado.actoCompletado = false;
+  }
+
+  // Stealth bar solo en Acto II
+  if(acto === 1) {
+    document.getElementById('stealth-bar').classList.remove('visible');
+  }
+
+  // Sincronizar UI de esfera
+  const esCaos = estado.esfera === 'caos';
+  document.body.classList.toggle('modo-caos', esCaos);
+  document.body.classList.remove('modo-abismo');
+  document.getElementById('esfera-label').textContent = esCaos ? 'Nox' : 'Solis';
+  document.getElementById('header-title').textContent = acto === 1 ? '✦ Arconte del Alba · Acto I' : '✦ Arconte del Alba · Acto II';
+
+  renderInventario();
+  actualizarAlertas();
+
+  mostrarChapterScreen(() => navegar(estado.nodoActual));
+}
+
+// ── Verificar partidas guardadas al cargar ──
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('btn-continuar-1').disabled = !hayPartidaGuardada(1);
+  document.getElementById('btn-continuar-2').disabled = !hayPartidaGuardada(2);
+
+  // Soporte de teclado para esfera toggle
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Tab' && document.getElementById('app').style.display !== 'none') {
+      e.preventDefault(); cambiarEsfera();
+    }
+  });
+});
+</script>
+</body>
+</html>
