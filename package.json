@@ -7,7 +7,7 @@
     "build": "echo 'Static HTML — no build step needed'",
     "cap:add:android": "npx cap add android",
     "cap:sync": "npx cap sync android",
-    "cap:open": "npx cap open android",
+    "cap:open": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
