@@ -1,418 +1,448 @@
-/**
- * ═══════════════════════════════════════════════════════
- *  ARCONTE DEL ALBA — Sistema de Sonido
- *  sonidos.js
- *
- *  Motor de audio 100% procedural usando Web Audio API.
- *  Sin archivos externos. Genera música y efectos en tiempo
- *  real acorde al estado del juego (Solis / Nox / Abismo).
- *
- *  Uso:
- *    Sonidos.iniciar();                 // tras un gesto del usuario
- *    Sonidos.setAmbiente('solis');      // cambia la atmósfera
- *    Sonidos.setAmbiente('caos');
- *    Sonidos.setAmbiente('abismo');
- *    Sonidos.fx.click();               // UI tap
- *    Sonidos.fx.esferaToggle();        // toggle Solis↔Nox
- *    Sonidos.fx.obtenerItem();
- *    Sonidos.fx.combateAtaque();
- *    Sonidos.fx.combateImpacto();
- *    Sonidos.fx.combateVictoria();
- *    Sonidos.fx.combateDerrota();
- *    Sonidos.fx.espejo();              // puzzle espejos
- *    Sonidos.fx.espejoCorrecto();
- *    Sonidos.fx.espejoError();
- *    Sonidos.fx.transicion();          // fade entre nodos
- *    Sonidos.fx.guardado();
- *    Sonidos.fx.purificarAlma();
- *    Sonidos.fx.absorberAlma();
- *    Sonidos.silenciar();              // mute/unmute toggle
- *    Sonidos.destruir();               // liberar recursos
- * ═══════════════════════════════════════════════════════
- */
-
 const Sonidos = (() => {
   'use strict';
 
-  // ── Estado interno ───────────────────────────────────
-  let ctx            = null;   // AudioContext
-  let masterGain     = null;   // volumen global
-  let ambienteActual = null;   // 'solis' | 'caos' | 'abismo'
-  let droneNode      = null;   // oscilador de drone activo
-  let padNodes       = [];     // nodos del pad armónico
-  let lfoNode        = null;   // LFO global de vibrato
-  let silenciado     = false;
-  let inicializado   = false;
+  let ctx, masterGain, compressor, ambienteActual, silenciado, inicializado;
+  let drones = [], pads = [], lfos = [], pulsosTimer = null, windNode = null;
 
-  // ── Escalas modales (frecuencias en Hz, base MIDI aprox.) ──
   const ESCALAS = {
-    solis: [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88],  // Do Mayor
-    caos:  [261.63, 277.18, 311.13, 369.99, 392.00, 415.30, 466.16],  // Frigio Dominante
-    abismo:[130.81, 138.59, 155.56, 184.99, 196.00, 207.65, 233.08],  // Locrio (octava baja)
+    solis: [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88],
+    caos:  [261.63, 277.18, 311.13, 369.99, 392.00, 415.30, 466.16],
+    abismo:[130.81, 138.59, 155.56, 184.99, 196.00, 207.65, 233.08],
   };
 
-  // ── Paletas de timbre por modo ──────────────────────
   const TIMBRES = {
-    solis:  { wave: 'sine',     droneFreq: 130.81, droneGain: 0.07, padGain: 0.05, reverbMix: 0.45, lfoRate: 0.12, lfoDepth: 3  },
-    caos:   { wave: 'sawtooth', droneFreq: 110.00, droneGain: 0.09, padGain: 0.06, reverbMix: 0.55, lfoRate: 0.28, lfoDepth: 8  },
-    abismo: { wave: 'square',   droneFreq:  55.00, droneGain: 0.11, padGain: 0.04, reverbMix: 0.70, lfoRate: 0.06, lfoDepth: 2  },
+    solis:  { droneFreq: 65.41, droneGain: 0.06, padGain: 0.04, reverbMix: 0.50, lfoRate: 0.10, lfoDepth: 2,  filterFreq: 800  },
+    caos:   { droneFreq: 55.00, droneGain: 0.08, padGain: 0.05, reverbMix: 0.60, lfoRate: 0.22, lfoDepth: 6,  filterFreq: 1200 },
+    abismo: { droneFreq: 27.50, droneGain: 0.07, padGain: 0.03, reverbMix: 0.75, lfoRate: 0.05, lfoDepth: 1.5, filterFreq: 400  },
   };
 
-  // ════════════════════════════════════════════════════
-  // HELPERS DE AUDIO
-  // ════════════════════════════════════════════════════
+  function ahora() { return ctx.currentTime; }
 
-  /** Crea un reverb sintético con ConvolverNode */
-  function crearReverb(duracion = 2.5, decay = 3.0) {
-    const len     = ctx.sampleRate * duracion;
-    const buffer  = ctx.createBuffer(2, len, ctx.sampleRate);
+  function crearReverb(duracion, decay, preDelay) {
+    preDelay = preDelay || 0;
+    const len = ctx.sampleRate * (duracion + preDelay);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let ch = 0; ch < 2; ch++) {
-      const data = buffer.getChannelData(ch);
+      const data = buf.getChannelData(ch);
       for (let i = 0; i < len; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+        const t = (i - preDelay * ctx.sampleRate) / (duracion * ctx.sampleRate);
+        data[i] = t > 0 ? (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * Math.pow(t, 0.3) : 0;
       }
     }
     const conv = ctx.createConvolver();
-    conv.buffer = buffer;
+    conv.buffer = buf;
     return conv;
   }
 
-  /** Rampa suave de ganancia para evitar clicks */
-  function rampGain(gainNode, target, tiempo = 0.05) {
-    gainNode.gain.linearRampToValueAtTime(target, ctx.currentTime + tiempo);
+  function crearFiltro(tipo, freq, q) {
+    const f = ctx.createBiquadFilter();
+    f.type = tipo; f.frequency.value = freq; if (q) f.Q.value = q;
+    return f;
   }
 
-  /** Nota corta con envelope ADSR simplificado */
-  function tocar(frecuencia, duracion, tipo = 'sine', volumen = 0.25, destino = null) {
-    if (!ctx) return;
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const dest = destino || masterGain;
-
-    osc.type            = tipo;
-    osc.frequency.value = frecuencia;
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(volumen, ctx.currentTime + 0.02);
-    gain.gain.linearRampToValueAtTime(volumen * 0.6, ctx.currentTime + duracion * 0.4);
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duracion);
-
-    osc.connect(gain);
-    gain.connect(dest);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + duracion + 0.05);
+  function crearEnvelope(gain, attack, sustain, release, peak) {
+    const t = ahora();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(peak, t + attack);
+    gain.gain.linearRampToValueAtTime(peak * (sustain || 0.7), t + attack + 0.05);
+    gain.gain.linearRampToValueAtTime(0, t + attack + 0.05 + (release || 0.3));
   }
 
-  /** Ruido blanco filtrado (percusión o viento) */
-  function ruido(duracion, frecCorte = 800, volumen = 0.15) {
-    if (!ctx) return;
-    const buf    = ctx.createBuffer(1, ctx.sampleRate * duracion, ctx.sampleRate);
-    const data   = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-
-    const src    = ctx.createBufferSource();
-    const filter = ctx.createBiquadFilter();
-    const gain   = ctx.createGain();
-
-    src.buffer         = buf;
-    filter.type        = 'lowpass';
-    filter.frequency.value = frecCorte;
-    gain.gain.setValueAtTime(volumen, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duracion);
-
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(masterGain);
-    src.start();
+  function oscilar(freq, tipo, detune) {
+    const o = ctx.createOscillator();
+    o.type = tipo || 'sine'; o.frequency.value = freq;
+    if (detune) o.detune.value = detune;
+    return o;
   }
 
-  // ════════════════════════════════════════════════════
-  // MOTOR DE AMBIENTE
-  // ════════════════════════════════════════════════════
-
-  function detenerAmbiente(fadeTime = 1.5) {
-    if (droneNode) {
-      droneNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeTime);
-      setTimeout(() => { try { droneNode.osc.stop(); } catch (_) {} droneNode = null; }, fadeTime * 1000 + 100);
+  function conectar(...nodes) {
+    for (let i = 0; i < nodes.length - 1; i++) {
+      if (nodes[i]) nodes[i].connect(nodes[i + 1]);
     }
-    padNodes.forEach(p => {
-      p.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeTime);
-      setTimeout(() => { try { p.osc.stop(); } catch (_) {} }, fadeTime * 1000 + 100);
+  }
+
+  function crearDroneOsc(freq, tipo, detune, gainVal, filterFreq) {
+    const osc = oscilar(freq, tipo, detune);
+    const gain = ctx.createGain(); gain.gain.value = 0;
+    const filtro = filterFreq ? crearFiltro('lowpass', filterFreq, 1) : null;
+    const chain = [osc, gain];
+    if (filtro) chain.push(filtro);
+    chain.push(masterGain);
+    conectar(...chain);
+    osc.start();
+    return { osc, gain, filtro, targetGain: gainVal };
+  }
+
+  function crearPadOsc(freq, tipo, detune, gainVal, reverbSend) {
+    const osc1 = oscilar(freq, tipo, detune ? -detune : 0);
+    const osc2 = oscilar(freq, tipo, detune ? detune : 0);
+    const gain = ctx.createGain(); gain.gain.value = 0;
+    const filtro = crearFiltro('lowpass', 2000, 0.7);
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.08 + Math.random() * 0.1;
+    lfoGain.gain.value = 300;
+    lfo.connect(lfoGain); lfoGain.connect(filtro.frequency);
+    lfo.start();
+    lfos.push(lfo);
+
+    conectar(osc1, gain); conectar(osc2, gain);
+    conectar(gain, filtro);
+    conectar(filtro, masterGain);
+    if (reverbSend) conectar(filtro, reverbSend);
+
+    osc1.start(); osc2.start();
+    return { osc1, osc2, gain, lfo, targetGain: gainVal };
+  }
+
+  function t(freq, dur, tipo, vol, dest, opts) {
+    if (!ctx) return;
+    opts = opts || {};
+    const a = opts.attack || 0.02, r = opts.release || dur * 0.6, sus = opts.sustain || 0.7;
+    const osc = oscilar(freq, tipo || 'sine', opts.detune || 0);
+    const g = ctx.createGain();
+    const t0 = ahora();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.2, t0 + a);
+    g.gain.linearRampToValueAtTime((vol || 0.2) * sus, t0 + a + 0.02);
+    g.gain.linearRampToValueAtTime(0, t0 + a + 0.02 + r);
+    const chain = [osc, g];
+    if (opts.filter) chain.push(opts.filter);
+    chain.push(dest || masterGain);
+    conectar(...chain);
+    osc.start(t0); osc.stop(t0 + dur + 0.05);
+    return { osc, g };
+  }
+
+  function ruido(dur, cutoff, vol, dest, opts) {
+    if (!ctx) return;
+    opts = opts || {};
+    const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const filter = crearFiltro('lowpass', cutoff || 800, opts.q || 1);
+    const g = ctx.createGain();
+    const t0 = ahora();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.1, t0 + (opts.attack || 0.01));
+    g.gain.linearRampToValueAtTime(0, t0 + dur);
+    conectar(src, filter, g, dest || masterGain);
+    src.start(t0);
+    return { src, filter, g };
+  }
+
+  function fmNota(carrierFreq, modFreq, modIndex, dur, vol, dest) {
+    if (!ctx) return;
+    const car = ctx.createOscillator(); car.type = 'sine'; car.frequency.value = carrierFreq;
+    const mod = ctx.createOscillator(); mod.type = 'sine'; mod.frequency.value = modFreq;
+    const modGain = ctx.createGain(); modGain.gain.value = modIndex;
+    const g = ctx.createGain(); g.gain.value = 0;
+    const t0 = ahora();
+    g.gain.linearRampToValueAtTime(vol || 0.1, t0 + 0.005);
+    g.gain.linearRampToValueAtTime(0, t0 + dur);
+    conectar(mod, modGain, car.frequency);
+    conectar(car, g, dest || masterGain);
+    car.start(t0); mod.start(t0);
+    car.stop(t0 + dur + 0.1); mod.stop(t0 + dur + 0.1);
+  }
+
+  function detenerAmbiente(fadeTime) {
+    fadeTime = fadeTime || 1.5;
+    const t = fadeTime * 1000 + 200;
+    drones.forEach(d => {
+      d.gain.gain.linearRampToValueAtTime(0, ahora() + fadeTime);
+      setTimeout(() => { try { d.osc.stop(); } catch(_) {} }, t);
     });
-    padNodes = [];
-    if (lfoNode) { try { lfoNode.stop(); } catch (_) {} lfoNode = null; }
+    drones = [];
+    pads.forEach(p => {
+      p.gain.gain.linearRampToValueAtTime(0, ahora() + fadeTime);
+      setTimeout(() => { try { p.osc1.stop(); p.osc2.stop(); } catch(_) {} }, t);
+    });
+    pads = [];
+    lfos.forEach(l => { try { l.stop(); } catch(_) {} });
+    lfos = [];
+    if (windNode) {
+      windNode.g.gain.linearRampToValueAtTime(0, ahora() + fadeTime);
+      setTimeout(() => { windNode = null; }, t);
+    }
+    if (pulsosTimer) { clearTimeout(pulsosTimer); pulsosTimer = null; }
+  }
+
+  function crearReverbSend(modo) {
+    const dur = modo === 'abismo' ? 5 : 3;
+    const decay = modo === 'caos' ? 2 : 4;
+    const rev = crearReverb(dur, decay, 0.03);
+    const g = ctx.createGain(); g.gain.value = TIMBRES[modo].reverbMix;
+    conectar(rev, g, masterGain);
+    return rev;
   }
 
   function iniciarAmbiente(modo) {
     if (!ctx || !TIMBRES[modo]) return;
-    const t = TIMBRES[modo];
-    const escala = ESCALAS[modo];
+    const t = TIMBRES[modo], escala = ESCALAS[modo];
+    const reverbSend = crearReverbSend(modo);
 
-    // Reverb compartido
-    const reverb     = crearReverb(modo === 'abismo' ? 4 : 2.5, modo === 'caos' ? 2 : 3.5);
-    const reverbGain = ctx.createGain();
-    reverbGain.gain.value = t.reverbMix;
-    reverb.connect(reverbGain);
-    reverbGain.connect(masterGain);
+    const lfoRate = ctx.createOscillator();
+    const lfoAmp = ctx.createGain();
+    lfoRate.frequency.value = t.lfoRate;
+    lfoAmp.gain.value = t.lfoDepth;
+    lfoRate.connect(lfoAmp); lfoRate.start();
+    lfos.push(lfoRate);
 
-    // LFO de vibrato
-    lfoNode = ctx.createOscillator();
-    const lfoGain = ctx.createGain();
-    lfoNode.frequency.value = t.lfoRate;
-    lfoGain.gain.value      = t.lfoDepth;
-    lfoNode.connect(lfoGain);
-    lfoNode.start();
+    const detuneAmt = modo === 'caos' ? 8 : modo === 'abismo' ? 3 : 4;
+    const fFreq = t.filterFreq;
 
-    // Drone fundamental (pedal tone)
-    const droneOsc  = ctx.createOscillator();
-    const droneGain = ctx.createGain();
-    droneOsc.type            = t.wave;
-    droneOsc.frequency.value = t.droneFreq;
-    lfoGain.connect(droneOsc.detune);                   // vibrato
-    droneGain.gain.setValueAtTime(0, ctx.currentTime);
-    droneGain.gain.linearRampToValueAtTime(t.droneGain, ctx.currentTime + 2.5);
-    droneOsc.connect(droneGain);
-    droneGain.connect(masterGain);
-    droneGain.connect(reverb);
-    droneOsc.start();
-    droneNode = { osc: droneOsc, gain: droneGain };
+    const d1 = crearDroneOsc(t.droneFreq, 'sawtooth', -detuneAmt, t.droneGain * 0.5, fFreq);
+    const d2 = crearDroneOsc(t.droneFreq * 0.5, 'sine', 0, t.droneGain * 0.6, null);
+    drones.push(d1, d2);
 
-    // Pad armónico — arpegio lento de la escala
+    if (modo === 'caos') {
+      const d3 = crearDroneOsc(t.droneFreq * 2, 'square', detuneAmt * 2, t.droneGain * 0.25, fFreq * 1.5);
+      drones.push(d3);
+    }
+    if (modo === 'abismo') {
+      const d3 = crearDroneOsc(t.droneFreq * 0.25, 'sine', 0, t.droneGain * 0.4, null);
+      drones.push(d3);
+    }
+
+    drones.forEach(d => {
+      lfoAmp.connect(d.osc.detune);
+      d.gain.gain.linearRampToValueAtTime(d.targetGain, ahora() + 3);
+      conectar(d.osc, d.gain);
+      if (d.filtro) conectar(d.gain, d.filtro);
+      conectar(d.gain, reverbSend);
+    });
+
     const NOTAS_PAD = modo === 'abismo'
       ? [escala[0], escala[2], escala[4]]
       : [escala[0], escala[2], escala[4], escala[6]];
 
     NOTAS_PAD.forEach((freq, i) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq * (modo === 'caos' ? 2 : 1);
-      // Desfase entre voces para efecto coral
-      const desfase = i * 0.6;
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(t.padGain, ctx.currentTime + 2.5 + desfase);
-      osc.connect(gain);
-      gain.connect(reverb);
-      gain.connect(masterGain);
-      osc.start();
-      padNodes.push({ osc, gain });
+      const mul = modo === 'caos' ? 2 : 1;
+      const pd = crearPadOsc(freq * mul, modo === 'solis' ? 'sine' : 'sawtooth', detuneAmt * 2, t.padGain, reverbSend);
+      pads.push(pd);
+      const desfase = 2.5 + i * 0.8;
+      pd.gain.gain.linearRampToValueAtTime(t.padGain, ahora() + desfase);
     });
 
-    // Pulso de campana (Solis) / distorsión (Caos) / silencio grave (Abismo)
-    programarPulsoAmbiente(modo, reverb);
+    if (modo === 'abismo') {
+      const w = ruido(999, 200, 0.03, masterGain, { q: 0.5 });
+      if (w) {
+        w.src.loop = true;
+        const lfoW = ctx.createOscillator();
+        const lfoWg = ctx.createGain();
+        lfoW.frequency.value = 0.03;
+        lfoWg.gain.value = 100;
+        lfoW.connect(lfoWg); lfoWg.connect(w.filter.frequency);
+        lfoW.start(); lfos.push(lfoW);
+        windNode = w;
+      }
+    }
+
+    drones.forEach(d => {
+      d.gain.gain.linearRampToValueAtTime(d.targetGain, ahora() + 3);
+    });
+
+    programarPulsoAmbiente(modo, reverbSend);
   }
 
-  /** Pulsos periódicos que refuerzan la atmósfera */
-  function programarPulsoAmbiente(modo, reverb) {
+  function programarPulsoAmbiente(modo, reverbSend) {
     if (!ctx) return;
-
     function pulso() {
       if (ambienteActual !== modo || !ctx) return;
       const escala = ESCALAS[modo];
-      const freq   = escala[Math.floor(Math.random() * escala.length)];
-      const delay  = modo === 'solis'  ? 6 + Math.random() * 8
-                   : modo === 'caos'   ? 3 + Math.random() * 5
-                   :                     9 + Math.random() * 12;
+      const freq = escala[Math.floor(Math.random() * escala.length)];
+      const delay = modo === 'solis' ? 8 + Math.random() * 10
+                  : modo === 'caos' ? 4 + Math.random() * 6
+                  : 12 + Math.random() * 15;
 
       if (modo === 'solis') {
-        // Campana cristalina (sine con ataque breve)
-        tocar(freq * 4, 3.5, 'sine', 0.06, reverb);
+        fmNota(freq * 2, freq * 6, 4, 2.5, 0.03, reverbSend);
       } else if (modo === 'caos') {
-        // Voz caótica (sawtooth breve con filtro)
-        const osc    = ctx.createOscillator();
-        const filter = ctx.createBiquadFilter();
-        const gain   = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.value   = freq * 2;
-        filter.type           = 'bandpass';
-        filter.frequency.value = 600 + Math.random() * 800;
-        filter.Q.value        = 4;
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.8);
-        osc.connect(filter); filter.connect(gain); gain.connect(reverb);
-        osc.start(); osc.stop(ctx.currentTime + 2);
+        const perc = ruido(0.3, 1500, 0.04, reverbSend, { q: 3 });
+        if (perc) { perc.filter.type = 'bandpass'; perc.filter.Q.value = 5; }
+        t(freq * 2, 1.2, 'sawtooth', 0.03, reverbSend, { filter: crearFiltro('lowpass', 600, 1), sustain: 0.2, release: 1.0 });
       } else {
-        // Abismo: golpe sub-grave
-        ruido(1.2, 120, 0.1);
-        tocar(freq * 0.5, 2.5, 'sine', 0.05, reverb);
+        ruido(1.0, 80, 0.04, reverbSend);
+        t(freq * 0.25, 2.0, 'sine', 0.03, reverbSend, { attack: 0.3, release: 1.5, sustain: 0.3 });
       }
 
-      setTimeout(pulso, delay * 1000);
+      pulsosTimer = setTimeout(pulso, delay * 1000);
     }
-
-    setTimeout(pulso, (modo === 'abismo' ? 4 : 2) * 1000);
+    pulsosTimer = setTimeout(pulso, 3000);
   }
 
-  // ════════════════════════════════════════════════════
-  // EFECTOS DE SONIDO (FX)
-  // ════════════════════════════════════════════════════
-
   const fx = {
-
-    /** Tap genérico de UI — click de pergamino */
     click() {
       if (!ctx) return;
-      tocar(880, 0.06, 'sine', 0.12);
-      tocar(660, 0.08, 'sine', 0.06);
+      ruido(0.04, 4000, 0.06, masterGain);
+      t(1200, 0.04, 'sine', 0.04, masterGain, { attack: 0.001, release: 0.03 });
     },
 
-    /** Toggle de esfera Solis ↔ Nox */
     esferaToggle() {
       if (!ctx) return;
       const esNox = ambienteActual === 'caos';
       if (!esNox) {
-        // Solis→Nox: glissando descendente
-        const osc  = ctx.createOscillator();
-        const gain = ctx.createGain();
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        const noise = ruido(0.3, 800, 0.04, masterGain, { attack: 0.001 });
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(440, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.4);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
-        osc.connect(gain); gain.connect(masterGain);
-        osc.start(); osc.stop(ctx.currentTime + 0.55);
+        osc.frequency.setValueAtTime(660, ahora());
+        osc.frequency.exponentialRampToValueAtTime(55, ahora() + 0.6);
+        g.gain.setValueAtTime(0, ahora());
+        g.gain.linearRampToValueAtTime(0.08, ahora() + 0.02);
+        g.gain.linearRampToValueAtTime(0, ahora() + 0.7);
+        const f = crearFiltro('lowpass', 1200, 1);
+        conectar(osc, f, g, masterGain);
+        osc.start(); osc.stop(ahora() + 0.75);
       } else {
-        // Nox→Solis: acorde mayor ascendente
-        [261.63, 329.63, 392.00, 523.25].forEach((f, i) => {
-          setTimeout(() => tocar(f, 0.5, 'sine', 0.1), i * 40);
+        const notas = [261.63, 329.63, 392.00, 523.25];
+        notas.forEach((f, i) => {
+          setTimeout(() => {
+            t(f, 0.8, 'sine', 0.06, masterGain, { attack: 0.02, release: 0.6, sustain: 0.5 });
+          }, i * 60);
         });
+        setTimeout(() => ruido(0.2, 3000, 0.03, masterGain), notas.length * 60);
       }
     },
 
-    /** Recoger ítem */
     obtenerItem() {
       if (!ctx) return;
-      [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
-        setTimeout(() => tocar(f, 0.35, 'sine', 0.08), i * 55);
+      const notas = [523.25, 659.25, 783.99, 1046.5];
+      notas.forEach((f, i) => {
+        setTimeout(() => {
+          fmNota(f, f * 4, 3, 0.3, 0.04, masterGain);
+        }, i * 60);
       });
+      setTimeout(() => ruido(0.15, 4000, 0.02, masterGain), 200);
     },
 
-    /** Ataque en combate */
     combateAtaque() {
       if (!ctx) return;
-      ruido(0.15, 2000, 0.25);
-      tocar(180, 0.2, 'sawtooth', 0.12);
+      ruido(0.1, 4000, 0.12, masterGain, { attack: 0.001 });
+      ruido(0.08, 2500, 0.08, masterGain, { attack: 0.002 });
+      t(120, 0.15, 'sawtooth', 0.08, masterGain, { attack: 0.001, release: 0.12 });
     },
 
-    /** Impacto recibido */
     combateImpacto() {
       if (!ctx) return;
-      ruido(0.2, 600, 0.3);
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(300, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.35);
-      osc.connect(gain); gain.connect(masterGain);
-      osc.start(); osc.stop(ctx.currentTime + 0.4);
+      ruido(0.15, 800, 0.15, masterGain);
+      ruido(0.1, 3000, 0.06, masterGain, { attack: 0.001 });
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(200, ahora());
+      osc.frequency.exponentialRampToValueAtTime(30, ahora() + 0.25);
+      g.gain.setValueAtTime(0.12, ahora());
+      g.gain.linearRampToValueAtTime(0, ahora() + 0.3);
+      conectar(osc, g, masterGain);
+      osc.start(); osc.stop(ahora() + 0.35);
     },
 
-    /** Victoria en combate */
     combateVictoria() {
       if (!ctx) return;
-      const melodia = [523.25, 659.25, 783.99, 1046.50, 880, 1046.50];
-      const tiempos = [0, 120, 240, 360, 500, 620];
+      const melodia = [523.25, 659.25, 783.99, 1046.5, 880, 1046.5, 1318.5];
+      const tiempos = [0, 100, 200, 300, 450, 550, 700];
+      const rev = crearReverb(2, 3, 0.02);
+      rev.connect(masterGain);
       melodia.forEach((f, i) => {
-        setTimeout(() => tocar(f, 0.5, 'sine', 0.13), tiempos[i]);
+        setTimeout(() => {
+          fmNota(f, f * 3, 2, 0.6, 0.04, rev);
+        }, tiempos[i]);
       });
     },
 
-    /** Derrota / muerte */
     combateDerrota() {
       if (!ctx) return;
-      [392.00, 349.23, 311.13, 261.63, 220.00].forEach((f, i) => {
-        setTimeout(() => tocar(f, 0.7, 'sawtooth', 0.1), i * 150);
+      const notas = [392, 349.23, 311.13, 261.63, 220, 196];
+      notas.forEach((f, i) => {
+        setTimeout(() => {
+          t(f, 0.8, 'sawtooth', 0.06, masterGain, { attack: 0.01, release: 0.7, filter: crearFiltro('lowpass', 400 + i * 50, 1) });
+        }, i * 180);
       });
-      setTimeout(() => ruido(0.8, 200, 0.15), 600);
+      setTimeout(() => ruido(1.0, 150, 0.08, masterGain, { attack: 0.3 }), notas.length * 180);
     },
 
-    /** Activar espejo (puzzle) */
     espejo() {
       if (!ctx) return;
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(880, ctx.currentTime + 0.25);
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
-      osc.connect(gain); gain.connect(masterGain);
-      osc.start(); osc.stop(ctx.currentTime + 0.45);
+      fmNota(880, 1760, 6, 0.3, 0.05, masterGain);
+      ruido(0.05, 5000, 0.03, masterGain, { attack: 0.001 });
     },
 
-    /** Secuencia de espejos correcta */
     espejoCorrecto() {
       if (!ctx) return;
-      [523.25, 783.99, 1046.50].forEach((f, i) => {
-        setTimeout(() => tocar(f, 0.6, 'sine', 0.1), i * 100);
+      const rev = crearReverb(1.5, 3, 0.01);
+      rev.connect(masterGain);
+      [523.25, 783.99, 1046.5].forEach((f, i) => {
+        setTimeout(() => fmNota(f, f * 5, 5, 0.5, 0.04, rev), i * 120);
       });
-      setTimeout(() => ruido(0.3, 3000, 0.08), 300);
     },
 
-    /** Error en secuencia de espejos */
     espejoError() {
       if (!ctx) return;
-      tocar(150, 0.4, 'square', 0.2);
-      setTimeout(() => tocar(120, 0.5, 'square', 0.15), 150);
+      ruido(0.3, 300, 0.1, masterGain);
+      t(100, 0.3, 'square', 0.08, masterGain, { attack: 0.001, release: 0.3 });
+      setTimeout(() => t(80, 0.4, 'square', 0.06, masterGain, { attack: 0.001, release: 0.35 }), 120);
     },
 
-    /** Transición entre nodos narrativos */
     transicion() {
       if (!ctx) return;
-      const gain = ctx.createGain();
-      gain.connect(masterGain);
-      ruido(0.6, 400, 0.04);
-      tocar(ESCALAS[ambienteActual || 'solis'][0], 1.2, 'sine', 0.05, gain);
+      ruido(0.8, 300, 0.03, masterGain, { attack: 0.1 });
+      const fBase = ESCALAS[ambienteActual || 'solis'][0];
+      t(fBase, 1.5, 'sine', 0.03, masterGain, { attack: 0.2, release: 1.0 });
     },
 
-    /** Partida guardada */
     guardado() {
       if (!ctx) return;
-      [880, 1108.73].forEach((f, i) => {
-        setTimeout(() => tocar(f, 0.3, 'sine', 0.07), i * 80);
-      });
+      fmNota(880, 1760, 4, 0.25, 0.04, masterGain);
+      setTimeout(() => fmNota(1108.73, 2217.46, 4, 0.3, 0.05, masterGain), 100);
     },
 
-    /** Purificar alma (Solis) — coro ascendente */
     purificarAlma() {
       if (!ctx) return;
-      const rev = crearReverb(2, 4);
+      const rev = crearReverb(3, 4, 0.05);
       rev.connect(masterGain);
-      [261.63, 329.63, 392.00, 523.25, 659.25].forEach((f, i) => {
-        setTimeout(() => tocar(f, 1.2, 'sine', 0.08, rev), i * 90);
+      [261.63, 329.63, 392, 523.25, 659.25].forEach((f, i) => {
+        setTimeout(() => {
+          t(f, 1.5, 'sine', 0.05, rev, { attack: 0.05, release: 1.2, sustain: 0.6 });
+          t(f * 0.5, 1.5, 'sine', 0.03, rev, { attack: 0.1, release: 1.2, sustain: 0.5 });
+        }, i * 120);
       });
     },
 
-    /** Absorber alma (Nox) — glissando perturbador */
     absorberAlma() {
       if (!ctx) return;
-      const rev  = crearReverb(3, 2);
+      const rev = crearReverb(4, 2, 0.03);
       rev.connect(masterGain);
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      const f = crearFiltro('lowpass', 1000, 2);
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(55, ctx.currentTime + 1.5);
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.7);
-      osc.connect(gain); gain.connect(rev); gain.connect(masterGain);
-      osc.start(); osc.stop(ctx.currentTime + 1.8);
-      ruido(1.5, 300, 0.1);
+      osc.frequency.setValueAtTime(600, ahora());
+      osc.frequency.exponentialRampToValueAtTime(40, ahora() + 1.8);
+      g.gain.setValueAtTime(0, ahora());
+      g.gain.linearRampToValueAtTime(0.08, ahora() + 0.05);
+      g.gain.linearRampToValueAtTime(0, ahora() + 2.0);
+      conectar(osc, f, g, rev, masterGain);
+      osc.start(); osc.stop(ahora() + 2.2);
+      ruido(2.0, 200, 0.06, rev, { attack: 0.1 });
     },
   };
-
-  // ════════════════════════════════════════════════════
-  // API PÚBLICA
-  // ════════════════════════════════════════════════════
 
   function iniciar() {
     if (inicializado) return;
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
+      compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 6;
+      compressor.ratio.value = 4;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.25;
       masterGain = ctx.createGain();
-      masterGain.gain.value = 0.7;
-      masterGain.connect(ctx.destination);
+      masterGain.gain.value = 0.65;
+      conectar(masterGain, compressor, ctx.destination);
       inicializado = true;
       setAmbiente('solis');
     } catch (e) {
@@ -424,23 +454,25 @@ const Sonidos = (() => {
     if (!ctx || ambienteActual === modo) return;
     detenerAmbiente(1.8);
     ambienteActual = modo;
-    setTimeout(() => iniciarAmbiente(modo), 400);
+    setTimeout(() => iniciarAmbiente(modo), 500);
   }
 
   function silenciar() {
     if (!ctx) return;
     silenciado = !silenciado;
-    rampGain(masterGain, silenciado ? 0 : 0.7, 0.3);
+    const target = silenciado ? 0 : 0.65;
+    masterGain.gain.linearRampToValueAtTime(target, ahora() + 0.3);
     return silenciado;
   }
 
   function destruir() {
     detenerAmbiente(0.5);
-    setTimeout(() => { if (ctx) { ctx.close(); ctx = null; inicializado = false; } }, 600);
+    setTimeout(() => {
+      if (compressor) { try { compressor.disconnect(); } catch(_) {} compressor = null; }
+      if (ctx) { ctx.close(); ctx = null; inicializado = false; }
+    }, 700);
   }
 
-  // ── Auto-init al primer gesto del usuario ──────────
-  // (necesario por políticas de autoplay de los navegadores)
   function _setupAutoInit() {
     const eventos = ['touchstart', 'mousedown', 'keydown'];
     function handler() {
@@ -450,9 +482,7 @@ const Sonidos = (() => {
     eventos.forEach(ev => document.addEventListener(ev, handler, { once: true }));
   }
 
-  // Integración automática con el juego (si ya está cargado)
   function _integrarConJuego() {
-    // Detectar cambio de esfera desde el toggle del juego
     const toggle = document.getElementById('esfera-toggle');
     if (toggle) {
       const original = window.cambiarEsfera;
@@ -460,7 +490,6 @@ const Sonidos = (() => {
         window.cambiarEsfera = function (...args) {
           fx.esferaToggle();
           const result = original.apply(this, args);
-          // Sincronizar ambiente tras el cambio de estado
           setTimeout(() => {
             const esfera = window.estado?.esfera;
             if (esfera === 'caos') setAmbiente('caos');
@@ -471,12 +500,10 @@ const Sonidos = (() => {
       }
     }
 
-    // Detectar clics en opciones narrativas
     document.addEventListener('click', e => {
       if (e.target.matches('.opcion-btn, .combat-btn')) fx.click();
     });
 
-    // Detectar toasts de ítem obtenido
     const toastEl = document.getElementById('toast');
     if (toastEl) {
       const obs = new MutationObserver(() => {
@@ -486,7 +513,6 @@ const Sonidos = (() => {
     }
   }
 
-  // Inicialización al cargar el DOM
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { _setupAutoInit(); _integrarConJuego(); });
   } else {
@@ -497,5 +523,4 @@ const Sonidos = (() => {
   return { iniciar, setAmbiente, silenciar, destruir, fx };
 })();
 
-// Exportar para módulos si se usa en entorno Node/bundler
 if (typeof module !== 'undefined' && module.exports) module.exports = Sonidos;
