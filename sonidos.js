@@ -4,6 +4,8 @@ const Sonidos = (() => {
   let ctx, masterGain, compressor, ambienteActual, silenciado, inicializado;
   let drones = [], pads = [], lfos = [], windNode = null;
   let seqTimers = [], melodiaTimer = null, percTimer = null;
+  let buffers = {};
+  let loopNodes = { source: null, gain: null };
 
   const ESCALAS = {
     solis: [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88],
@@ -146,8 +148,53 @@ const Sonidos = (() => {
     seqTimers = [];
   }
 
+  async function cargarLoops() {
+    if (buffers.solis) return;
+    const urls = { solis:'assets/solis.mp3', caos:'assets/caos.mp3', abismo:'assets/abismo.mp3' };
+    try {
+      await Promise.all(Object.entries(urls).map(async ([modo, url]) => {
+        const resp = await fetch(url);
+        if (!resp.ok) return;
+        buffers[modo] = await ctx.decodeAudioData(await resp.arrayBuffer());
+      }));
+      if (ambienteActual && buffers[ambienteActual]) iniciarLoop(ambienteActual, 2);
+    } catch (e) { console.warn('[Sonidos] Error cargando loops:', e); }
+  }
+
+  function iniciarLoop(modo, fadeTime) {
+    detenerLoop(0.01);
+    if (!buffers[modo] || !ctx) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buffers[modo];
+    src.loop = true;
+    const gn = ctx.createGain();
+    gn.gain.setValueAtTime(0, ahora());
+    gn.gain.linearRampToValueAtTime(0.4, ahora() + (fadeTime || 2));
+    src.connect(gn); gn.connect(masterGain);
+    src.start(0);
+    loopNodes = { source: src, gain: gn };
+  }
+
+  function detenerLoop(fadeTime) {
+    if (!loopNodes.source) return;
+    const ft = fadeTime || 2;
+    const { source: src, gain: gn } = loopNodes;
+    loopNodes = { source: null, gain: null };
+    try {
+      gn.gain.cancelScheduledValues(ahora());
+      gn.gain.setValueAtTime(gn.gain.value, ahora());
+      gn.gain.linearRampToValueAtTime(0, ahora() + ft);
+    } catch (_) {}
+    setTimeout(() => {
+      try { src.stop(); } catch(_) {}
+      try { src.disconnect(); } catch(_) {}
+      try { gn.disconnect(); } catch(_) {}
+    }, ft * 1000 + 100);
+  }
+
   function detenerAmbiente(fadeTime) {
     fadeTime = fadeTime || 1.5;
+    detenerLoop(fadeTime);
     const t = fadeTime * 1000 + 200;
     drones.forEach(d => {
       d.gain.gain.linearRampToValueAtTime(0, ahora() + fadeTime);
@@ -389,6 +436,7 @@ const Sonidos = (() => {
 
     iniciarMelodia(modo, reverbSend);
     iniciarRitmo(modo);
+    iniciarLoop(modo, 2);
   }
 
   const fx = {
@@ -555,6 +603,7 @@ const Sonidos = (() => {
       masterGain.gain.value = 0.6;
       conectar(masterGain, compressor, ctx.destination);
       inicializado = true;
+      cargarLoops();
       setAmbiente('solis');
     } catch (e) {
       console.warn('[Sonidos] Web Audio API no disponible:', e);
