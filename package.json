@@ -1,0 +1,20 @@
+{
+  "name": "arconte-del-alba",
+  "version": "1.0.0",
+  "description": "Arconte del Alba — Las Esencias Gemelas. RPG de texto medieval oscuro.",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Static HTML — no build step needed'",
+    "cap:add:android": "npx cap add android",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "prepare": "npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}

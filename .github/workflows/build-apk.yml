@@ -1,0 +1,127 @@
+name: Build APK — Arconte del Alba
+
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build & Sign Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Node.js ───────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── 3. Java (Gradle necesita JDK 17) ─────────────────
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ── 4. Android SDK ───────────────────────────────────
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ── 5. Dependencias Node ─────────────────────────────
+      - name: Install Node dependencies
+        run: npm ci
+
+      # ── 6. Preparar carpeta www ──────────────────────────
+      - name: Prepare www folder
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+          # Copia sonidos.js si existe
+          [ -f sonidos.js ] && cp sonidos.js www/sonidos.js || true
+          # Copia cualquier asset adicional (imágenes, fuentes locales, etc.)
+          [ -d assets ] && cp -r assets www/assets || true
+
+      # ── 7. Capacitor sync ────────────────────────────────
+      - name: Capacitor sync Android
+        run: npx cap sync android
+
+      # ── 8. Gradle permissions ────────────────────────────
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      # ── 9. Build APK debug (PRs y branches sin tag) ──────
+      - name: Build Debug APK
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload Debug APK
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: arconte-debug-${{ github.run_number }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      # ── 10. Build APK release (solo en tags v*) ──────────
+      - name: Build Release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      # ── 11. Firmar APK release ───────────────────────────
+      - name: Sign Release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: r0adkll/sign-android-release@v1
+        id: sign_apk
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      # ── 12. Upload Release APK firmado ───────────────────
+      - name: Upload Signed Release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: arconte-release-${{ github.ref_name }}
+          path: ${{ steps.sign_apk.outputs.signedReleaseFile }}
+          retention-days: 90
+
+      # ── 13. GitHub Release automático con el APK ─────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.sign_apk.outputs.signedReleaseFile }}
+          name: "Arconte del Alba ${{ github.ref_name }}"
+          body: |
+            ## ✦ Arconte del Alba — ${{ github.ref_name }}
+
+            APK firmado listo para instalar en Android.
+
+            ### Instalación
+            1. Descarga el archivo `.apk` adjunto.
+            2. En tu dispositivo Android, habilita *Instalar apps desconocidas* para tu navegador/gestor de archivos.
+            3. Abre el APK e instala.
+
+            ### Changelog
+            _Actualiza esta sección describiendo los cambios de la versión._
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
